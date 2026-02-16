@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:2.10-alpine
+    container_name: n7-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: "-js -m 8222"
+    volumes:
+      - nats_data:/data
+
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: n7-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: n7user
+      POSTGRES_PASSWORD: n7password
+      POSTGRES_DB: n7
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n7user -d n7"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: n7-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  nats_data:
+  postgres_data:
+  redis_data:

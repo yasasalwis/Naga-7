@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package n7.schemas;
+
+message Action {
+  string action_id = 1;
+  string incident_id = 2;
+  string striker_id = 3;
+  string action_type = 4; // e.g., "kill_process", "block_ip"
+  
+  // Parameters for the action (JSON string)
+  string parameters = 5;
+  
+  string status = 6; // "queued", "executing", "succeeded", "failed"
+  
+  // Forensic evidence or result data (JSON string)
+  string result_data = 7;
+}

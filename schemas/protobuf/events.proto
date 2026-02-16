@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package n7.schemas;
+
+message Event {
+  string event_id = 1;
+  string timestamp = 2; // ISO 8601
+  string sentinel_id = 3;
+  string event_class = 4; // e.g., "process", "network", "file"
+  string severity = 5; // "info", "low", "medium", "high", "critical"
+  
+  // Dynamic payload data (JSON string for flexibility in Python)
+  // In a strict typed system we might use Any or specific messages, 
+  // but for rapid dev with Python/JSON interop, a JSON string is practical.
+  string raw_data = 6; 
+  
+  // Enrichments added by Core
+  string enrichments = 7; // JSON string
+}
