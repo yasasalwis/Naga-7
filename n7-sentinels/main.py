@@ -1,6 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'n7-core')))
 
 import asyncio
 import logging
@@ -10,6 +11,8 @@ from n7_sentinels.event_emitter.service import EventEmitterService
 from n7_sentinels.detection_engine.service import DetectionEngineService
 from n7_sentinels.probes.system import SystemProbe
 from n7_sentinels.config import settings
+
+from n7_core.utils import print_banner
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -21,6 +24,7 @@ async def main():
     Initializes and starts the sentinel agent.
     Ref: TDD Section 5.1 Sentinel Process Model
     """
+    print_banner("N7-Sentinel")
     logger.info("Starting N7-Sentinel...")
     
     
