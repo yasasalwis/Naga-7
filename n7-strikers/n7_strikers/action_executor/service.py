@@ -67,8 +67,30 @@ class ActionExecutorService(BaseService):
             result = await action_handler.execute(params)
             logger.info(f"Action execution result: {result}")
             
-            # Report status back to Core (TODO: Implement status reporting)
-            # await nats_client.nc.publish("n7.actions.status", ...)
+            # Report status back to Core
+            status_update = ProtoAction()
+            status_update.action_id = proto_action.action_id
+            status_update.incident_id = proto_action.incident_id
+            status_update.striker_id = settings.AGENT_ID
+            status_update.action_type = proto_action.action_type
+            status_update.status = "completed" if result.get("success", False) else "failed"
+            status_update.result_data = json.dumps(result)
+            
+            if nats_client.nc.is_connected:
+                await nats_client.nc.publish("n7.actions.status", status_update.SerializeToString())
+                logger.info(f"Reported status for action {proto_action.action_id}")
+            else:
+                logger.warning("NATS not connected. Could not report status.")
 
         except Exception as e:
             logger.error(f"Error processing action: {e}")
+            # Try to report failure
+            try:
+                if 'proto_action' in locals() and nats_client.nc.is_connected:
+                     status_update = ProtoAction()
+                     status_update.action_id = proto_action.action_id
+                     status_update.status = "error"
+                     status_update.result_data = json.dumps({"error": str(e)})
+                     await nats_client.nc.publish("n7.actions.status", status_update.SerializeToString())
+            except:
+                pass

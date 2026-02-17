@@ -2,3 +2,7 @@ asyncio
 nats-py
 protobuf
 psutil
+langgraph
+langchain
+scapy
+watchdog

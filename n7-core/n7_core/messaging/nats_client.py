@@ -3,7 +3,7 @@ import logging
 import asyncio
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
-from .config import settings
+from ..config import settings
 
 logger = logging.getLogger("n7-core.messaging")
 

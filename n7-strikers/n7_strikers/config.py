@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     AGENT_ID: str = "striker-1" # Should be dynamic/generated
     ZONE: str = "default"
     
+    CORE_API_URL: str = "http://localhost:8000/api/v1"
+    
     CAPABILITIES: list[str] = ["kill_process", "block_ip"]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

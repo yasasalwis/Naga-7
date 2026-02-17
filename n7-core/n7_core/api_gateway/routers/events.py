@@ -2,6 +2,9 @@
 from fastapi import APIRouter, Depends, Query
 from typing import List, Optional
 from ...schemas.event import Event
+from ...models.event import Event as EventModel
+from ...database.session import async_session_maker
+from sqlalchemy import select
 from ..auth import get_current_active_user
 
 router = APIRouter(prefix="/events", tags=["Events"])
@@ -12,5 +15,12 @@ async def list_events(
     limit: int = 100, 
     current_user = Depends(get_current_active_user)
 ):
-    # TODO: Implement DB query
-    return []
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(EventModel)
+            .offset(skip)
+            .limit(limit)
+            .order_by(EventModel.timestamp.desc())
+        )
+        events = result.scalars().all()
+        return events

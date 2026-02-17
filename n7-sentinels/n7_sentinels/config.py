@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     AGENT_SUBTYPE: str = "endpoint"
     AGENT_ID: str = "sentinel-1" # Should be dynamic/generated
     ZONE: str = "default"
+    
+    CORE_API_URL: str = "http://localhost:8000/api/v1"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

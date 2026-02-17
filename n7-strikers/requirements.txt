@@ -2,3 +2,5 @@ asyncio
 nats-py
 protobuf
 psutil
+langgraph
+langchain

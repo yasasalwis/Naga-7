@@ -10,3 +10,8 @@ uvicorn
 grpcio-tools
 protobuf
 psutil
+redis
+httpx
+passlib
+python-jose[cryptography]
+python-multipart
