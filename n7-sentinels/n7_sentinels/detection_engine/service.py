@@ -1,9 +1,8 @@
-
 import logging
-import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 logger = logging.getLogger("n7-sentinel.detection-engine")
+
 
 class DetectionEngineService:
     """
@@ -11,6 +10,7 @@ class DetectionEngineService:
     Responsibility: Analyze collected data for anomalies/signatures locally.
     Ref: TDD Section 5.1 Sentinel Process Model
     """
+
     def __init__(self, event_emitter):
         self._running = False
         self.event_emitter = event_emitter

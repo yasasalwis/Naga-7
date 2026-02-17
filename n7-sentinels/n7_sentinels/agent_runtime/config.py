@@ -1,6 +1,7 @@
-
 from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     """
@@ -21,7 +22,11 @@ class Settings(BaseSettings):
     NATS_URL: str = "nats://localhost:4222"
     NATS_CLUSTER_ID: str = "n7-cluster"
 
+    # Authentication - Unique API key per agent instance
+    API_KEY_FILE: str = ".agent_api_key"  # Local file to persist API key
+
     # Logging
     LOG_LEVEL: str = "INFO"
+
 
 settings = Settings()

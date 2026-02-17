@@ -1,7 +1,7 @@
 import logging
+
 import nats
-from nats.js.api import StreamConfig
-from google.protobuf.json_format import MessageToJson
+
 # Import generated protobuf class
 try:
     from schemas.events_pb2 import Event as ProtoEvent
@@ -12,11 +12,13 @@ except ImportError:
 
 logger = logging.getLogger("n7-sentinel.event-emitter")
 
+
 class EventEmitter:
     """
     Event Emitter.
     Responsibility: Emit events to the message bus in the standardized schema.
     """
+
     def __init__(self, config):
         self.config = config
         self.nc = None
@@ -45,17 +47,17 @@ class EventEmitter:
                 sentinel_id=event_data.get("sentinel_id"),
                 event_class=event_data.get("event_class"),
                 severity=event_data.get("severity", "info"),
-                raw_data=event_data.get("raw_data", "{}") # JSON string
+                raw_data=event_data.get("raw_data", "{}")  # JSON string
             )
-            
+
             # Serialize
             payload = proto_event.SerializeToString()
-            
+
             # Publish
             subject = f"n7.events.{self.config.AGENT_SUBTYPE}"
             await self.js.publish(subject, payload)
             logger.debug(f"Emitted event {proto_event.event_id} to {subject}")
-            
+
         except Exception as e:
             logger.error(f"Failed to emit event: {e}")
 

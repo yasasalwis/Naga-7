@@ -1,9 +1,8 @@
-
-import asyncio
 import logging
 from typing import List, Protocol
 
 logger = logging.getLogger("n7-core.service-manager")
+
 
 class Service(Protocol):
     async def start(self):
@@ -11,16 +10,18 @@ class Service(Protocol):
 
     async def stop(self):
         ...
-        
+
     @property
     def name(self) -> str:
         ...
+
 
 class ServiceManager:
     """
     Manages the lifecycle of N7-Core services.
     Ref: TDD Section 4.1 Core Service Decomposition
     """
+
     def __init__(self):
         self.services: List[Service] = []
         self._running = False

@@ -1,6 +1,7 @@
-
 from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     """
@@ -12,12 +13,13 @@ class Settings(BaseSettings):
     # Agent Identity
     AGENT_TYPE: Literal["sentinel", "striker"] = "sentinel"
     AGENT_SUBTYPE: str = "system"  # Default subtype
-    
+
     # NATS Configuration
     NATS_URL: str = "nats://localhost:4222"
     NATS_CLUSTER_ID: str = "n7-cluster"
 
     # Logging
     LOG_LEVEL: str = "INFO"
+
 
 settings = Settings()

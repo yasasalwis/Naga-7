@@ -1,19 +1,18 @@
-import asyncio
-import logging
-import json
 import hashlib
-from datetime import datetime, timedelta
-from google.protobuf.json_format import MessageToDict
-from sqlalchemy.ext.asyncio import AsyncSession
+import json
+import logging
+from datetime import datetime
 
-from ..service_manager.base_service import BaseService
-from ..messaging.nats_client import nats_client
-from ..config import settings
-from ..database.session import async_session_maker
-from ..database.redis import redis_client
-from ..models.event import Event as EventModel
+from google.protobuf.json_format import MessageToDict
+
 # Protobuf schemas generated successfully
 from schemas.events_pb2 import Event as ProtoEvent
+from ..database.redis import redis_client
+from ..database.session import async_session_maker
+from ..messaging.nats_client import nats_client
+from ..models.event import Event as EventModel
+from ..service_manager.base_service import BaseService
+
 # Import models
 # We don't have an Event model yet? The TDD says "Persist all raw and enriched events to a time-series data store".
 # I should create an Event model in models/event.py? Or just use a raw execution for TimescaleDB.
@@ -27,26 +26,28 @@ from schemas.events_pb2 import Event as ProtoEvent
 
 logger = logging.getLogger("n7-core.event-pipeline")
 
+
 class EventPipelineService(BaseService):
     """
     Event Pipeline Service.
     Responsibility: Ingest, validate, normalize, deduplicate, and enrich events from Sentinels.
     """
+
     def __init__(self):
         super().__init__("EventPipelineService")
         self._running = False
-        self.dedup_window = 60 # seconds
+        self.dedup_window = 60  # seconds
 
     async def start(self):
         self._running = True
         logger.info("EventPipelineService started.")
-        
+
         # Subscribe to Sentinel events
         if nats_client.nc and nats_client.nc.is_connected:
             await nats_client.nc.subscribe(
-                "n7.events.>", 
+                "n7.events.>",
                 cb=self.handle_event,
-                queue="event_pipeline" 
+                queue="event_pipeline"
             )
             logger.info("Subscribed to n7.events.>")
         else:
@@ -68,17 +69,17 @@ class EventPipelineService(BaseService):
             unique_str = f"{event_dict.get('sentinel_id')}:{event_dict.get('event_class')}:{json.dumps(event_dict.get('raw_data'), sort_keys=True)}"
             event_hash = hashlib.sha256(unique_str.encode()).hexdigest()
             key = f"n7:dedup:{event_hash}"
-            
+
             # Check if key exists
             if await redis_client.get(key):
                 return True
-            
+
             # Set key with expiry
             await redis_client.set(key, "1", ex=self.dedup_window)
             return False
         except Exception as e:
             logger.error(f"Redis error in deduplication: {e}")
-            return False # Fail open (allow potential duplicates rather than dropping)
+            return False  # Fail open (allow potential duplicates rather than dropping)
 
     async def handle_event(self, msg):
         """
@@ -88,9 +89,9 @@ class EventPipelineService(BaseService):
             # Parse Protobuf
             proto_event = ProtoEvent()
             proto_event.ParseFromString(msg.data)
-            
+
             event_dict = MessageToDict(proto_event, preserving_proto_field_name=True)
-            
+
             # 1. Deduplication
             if await self._is_duplicate(event_dict):
                 logger.debug(f"Duplicate event dropped: {proto_event.event_id}")
@@ -108,10 +109,10 @@ class EventPipelineService(BaseService):
                 # Assuming string for simplicity based on previous context, or current time fallback
                 ts = datetime.utcnow()
                 if hasattr(proto_event, 'timestamp') and proto_event.timestamp:
-                     try:
-                         ts = datetime.fromisoformat(proto_event.timestamp.replace('Z', '+00:00'))
-                     except:
-                         pass
+                    try:
+                        ts = datetime.fromisoformat(proto_event.timestamp.replace('Z', '+00:00'))
+                    except:
+                        pass
 
                 db_event = EventModel(
                     event_id=proto_event.event_id,
@@ -121,11 +122,12 @@ class EventPipelineService(BaseService):
                     severity=proto_event.severity,
                     raw_data=event_dict.get('raw_data', {}),
                     enrichments=enrichments,
-                    mitre_techniques=list(proto_event.mitre_techniques) if hasattr(proto_event, 'mitre_techniques') else []
+                    mitre_techniques=list(proto_event.mitre_techniques) if hasattr(proto_event,
+                                                                                   'mitre_techniques') else []
                 )
                 session.add(db_event)
                 await session.commit()
-            
+
             # 4. Forward to Threat Correlation (via NATS subject)
             # Publishing to internal stream for other services (Correlator)
             if nats_client.nc:

@@ -1,12 +1,13 @@
-
-import logging
 import json
+import logging
+from datetime import datetime
 from typing import Optional, Dict
-from datetime import datetime, timedelta
-from ..service_manager.base_service import BaseService
+
 from ..database.redis import redis_client
+from ..service_manager.base_service import BaseService
 
 logger = logging.getLogger("n7-core.threat-intel")
+
 
 class ThreatIntelService(BaseService):
     """
@@ -14,6 +15,7 @@ class ThreatIntelService(BaseService):
     Responsibility: Manage threat intelligence feeds and IOC matching.
     Ref: TDD Section 4.1 Core Service Decomposition, SRS Section 8.1
     """
+
     def __init__(self):
         super().__init__("ThreatIntelService")
         self._running = False
@@ -44,15 +46,15 @@ class ThreatIntelService(BaseService):
         try:
             key = f"n7:ioc:{ioc_type}:{ioc_value}"
             cached = await redis_client.get(key)
-            
+
             if cached:
                 logger.debug(f"IOC cache hit: {ioc_type}={ioc_value}")
                 return json.loads(cached)
-            
+
             # Future: Query database for IOCs if not in cache
             # For now, return None (not found)
             return None
-            
+
         except Exception as e:
             logger.error(f"Error checking IOC: {e}", exc_info=True)
             return None
@@ -77,12 +79,12 @@ class ThreatIntelService(BaseService):
                 "metadata": metadata or {},
                 "added_at": datetime.utcnow().isoformat()
             }
-            
+
             key = f"n7:ioc:{ioc_type}:{ioc_value}"
             await redis_client.set(key, json.dumps(ioc_data), ex=self.ioc_cache_ttl)
-            
+
             logger.info(f"Added IOC: {ioc_type}={ioc_value} from {source}")
-            
+
         except Exception as e:
             logger.error(f"Error adding IOC: {e}", exc_info=True)
 
@@ -95,11 +97,11 @@ class ThreatIntelService(BaseService):
             Dict with threat_intel field containing matches
         """
         enrichments = {"threat_intel_matches": []}
-        
+
         try:
             # Check common IOC fields
             checks = []
-            
+
             if "source_ip" in event_data:
                 checks.append(("ip", event_data["source_ip"]))
             if "destination_ip" in event_data:
@@ -110,14 +112,14 @@ class ThreatIntelService(BaseService):
                 checks.append(("hash", event_data["file_hash"]))
             if "url" in event_data:
                 checks.append(("url", event_data["url"]))
-            
+
             for ioc_type, ioc_value in checks:
                 match = await self.check_ioc(ioc_type, ioc_value)
                 if match:
                     enrichments["threat_intel_matches"].append(match)
                     logger.info(f"Threat intel match: {ioc_type}={ioc_value}")
-            
+
         except Exception as e:
             logger.error(f"Error enriching with threat intel: {e}", exc_info=True)
-        
+
         return enrichments

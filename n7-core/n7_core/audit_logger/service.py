@@ -1,13 +1,16 @@
-import logging
 import json
+import logging
 from datetime import datetime
+
 from sqlalchemy import select
-from ..service_manager.base_service import BaseService
-from ..messaging.nats_client import nats_client
+
 from ..database.session import async_session_maker
+from ..messaging.nats_client import nats_client
 from ..models.audit_log import AuditLog
+from ..service_manager.base_service import BaseService
 
 logger = logging.getLogger("n7-core.audit-logger")
+
 
 class AuditLoggerService(BaseService):
     """
@@ -15,6 +18,7 @@ class AuditLoggerService(BaseService):
     Responsibility: Immutable logging of all events, decisions, and actions with hash-chain tamper detection.
     Ref: TDD Section 4.1 / SRS 3.5 Audit and Compliance (FR-C040, FR-C041, FR-C042)
     """
+
     def __init__(self):
         super().__init__("AuditLoggerService")
         self._running = False
@@ -22,11 +26,11 @@ class AuditLoggerService(BaseService):
     async def start(self):
         self._running = True
         logger.info("AuditLoggerService started.")
-        
+
         # Subscribe to audit events
         if nats_client.nc and nats_client.nc.is_connected:
             await nats_client.nc.subscribe(
-                "n7.audit", 
+                "n7.audit",
                 cb=self.handle_audit_event,
                 queue="audit_logger"
             )
@@ -49,13 +53,13 @@ class AuditLoggerService(BaseService):
                 stmt = select(AuditLog).order_by(AuditLog.timestamp.desc()).limit(1)
                 result = await session.execute(stmt)
                 previous_entry = result.scalar_one_or_none()
-                
+
                 previous_hash = previous_entry.current_hash if previous_entry else None
-                
+
                 # Create new entry
                 timestamp = datetime.utcnow()
                 log_id = str(AuditLog.__table__.columns['log_id'].default.arg())  # Generate UUID
-                
+
                 # Calculate hash
                 current_hash = AuditLog.calculate_hash(
                     log_id=log_id,
@@ -66,7 +70,7 @@ class AuditLoggerService(BaseService):
                     details=json.dumps(details or {}, sort_keys=True),
                     previous_hash=previous_hash or ""
                 )
-                
+
                 audit_entry = AuditLog(
                     timestamp=timestamp,
                     actor=actor,
@@ -76,12 +80,12 @@ class AuditLoggerService(BaseService):
                     previous_hash=previous_hash,
                     current_hash=current_hash
                 )
-                
+
                 session.add(audit_entry)
                 await session.commit()
-                
+
                 logger.debug(f"Audit log created: {action} by {actor}")
-                
+
         except Exception as e:
             logger.error(f"Failed to create audit log: {e}", exc_info=True)
 
@@ -117,7 +121,7 @@ class AuditLoggerService(BaseService):
                 stmt = select(AuditLog).order_by(AuditLog.timestamp.asc())
                 result = await session.execute(stmt)
                 entries = result.scalars().all()
-                
+
                 previous_hash = None
                 for entry in entries:
                     # Recalculate hash
@@ -130,22 +134,22 @@ class AuditLoggerService(BaseService):
                         details=json.dumps(entry.details, sort_keys=True),
                         previous_hash=entry.previous_hash or ""
                     )
-                    
+
                     # Verify hash matches
                     if expected_hash != entry.current_hash:
                         logger.error(f"Hash mismatch detected at log_id={entry.log_id}")
                         return False
-                    
+
                     # Verify previous hash chain
                     if entry.previous_hash != previous_hash:
                         logger.error(f"Chain broken at log_id={entry.log_id}")
                         return False
-                    
+
                     previous_hash = entry.current_hash
-                
+
                 logger.info("Audit log hash chain verified successfully")
                 return True
-                
+
         except Exception as e:
             logger.error(f"Error verifying hash chain: {e}", exc_info=True)
             return False

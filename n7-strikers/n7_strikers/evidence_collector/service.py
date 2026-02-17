@@ -1,7 +1,7 @@
-
 import logging
 
 logger = logging.getLogger("n7-striker.evidence-collector")
+
 
 class EvidenceCollectorService:
     """
@@ -9,6 +9,7 @@ class EvidenceCollectorService:
     Responsibility: Forensically capture state before/after actions.
     Ref: TDD Section 6.1 Striker Process Model
     """
+
     def __init__(self):
         self._running = False
 

@@ -1,18 +1,19 @@
+from typing import List
 
-from fastapi import APIRouter, Depends, Query
-from typing import List, Optional
-from ...schemas.event import Event
-from ...models.event import Event as EventModel
-from ...database.session import async_session_maker
+from fastapi import APIRouter
 from sqlalchemy import select
-from ..auth import get_current_active_user
+
+from ...database.session import async_session_maker
+from ...models.event import Event as EventModel
+from ...schemas.event import Event
 
 router = APIRouter(tags=["Events"])
 
+
 @router.get("/", response_model=List[Event])
 async def list_events(
-    skip: int = 0, 
-    limit: int = 100
+        skip: int = 0,
+        limit: int = 100
 ):
     async with async_session_maker() as session:
         result = await session.execute(

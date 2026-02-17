@@ -1,8 +1,10 @@
-
 import logging
 import sys
+
 from pythonjsonlogger import jsonlogger
+
 from .config import settings
+
 
 def setup_logging():
     """
@@ -10,13 +12,13 @@ def setup_logging():
     Uses JSON formatting in production, standard formatting in development.
     """
     logger = logging.getLogger()
-    
+
     # clear existing handlers
     for handler in logger.handlers:
         logger.removeHandler(handler)
 
     handler = logging.StreamHandler(sys.stdout)
-    
+
     if settings.ENVIRONMENT == "production":
         formatter = jsonlogger.JsonFormatter(
             "%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -36,5 +38,6 @@ def setup_logging():
     logging.getLogger("asyncio").setLevel(logging.WARNING)
 
     return logger
+
 
 logger = setup_logging()

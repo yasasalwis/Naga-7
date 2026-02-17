@@ -1,15 +1,18 @@
-
 import logging
+
 from nats.aio.client import Client as NATS
+
 from ..config import settings
 
 logger = logging.getLogger("n7-striker.messaging")
+
 
 class NATSClient:
     """
     NATS Client wrapper for Striker agents.
     Provides connection management and auto-reconnect support.
     """
+
     def __init__(self):
         self.nc = NATS()
 
@@ -47,5 +50,6 @@ class NATSClient:
 
     async def _reconnected_cb(self):
         logger.info("Reconnected to NATS!")
+
 
 nats_client = NATSClient()

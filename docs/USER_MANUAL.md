@@ -31,9 +31,11 @@
 
 ### 1.1 What is Naga-7?
 
-Naga-7 (N7) is an open-source, multi-level AI agent system for continuous security monitoring and automated threat response. It consists of three core components:
+Naga-7 (N7) is an open-source, multi-level AI agent system for continuous security monitoring and automated threat
+response. It consists of three core components:
 
-- **N7-Core:** The central orchestrator that coordinates everything, processes events, makes decisions, and manages agents.
+- **N7-Core:** The central orchestrator that coordinates everything, processes events, makes decisions, and manages
+  agents.
 - **N7-Sentinels:** Monitoring agents deployed across your infrastructure to detect threats.
 - **N7-Strikers:** Response agents that execute containment and remediation actions.
 
@@ -62,24 +64,24 @@ Naga-7 (N7) is an open-source, multi-level AI agent system for continuous securi
 
 ### 1.3 Key Concepts
 
-| Concept | Description |
-|---------|-------------|
-| **Event** | A raw observation from a Sentinel (e.g., "Process `mimikatz.exe` started") |
-| **Alert** | One or more correlated events that indicate a potential threat |
-| **Incident** | A confirmed threat requiring coordinated response |
-| **Verdict** | The Core's decision: `auto_respond`, `escalate`, or `dismiss` |
-| **Playbook** | A sequence of Striker actions to execute for a specific threat type |
-| **Threat Score** | A 0-100 score indicating the severity and confidence of a threat |
-| **Blast Radius** | The scope of impact that an automated response could have |
+| Concept          | Description                                                                |
+|------------------|----------------------------------------------------------------------------|
+| **Event**        | A raw observation from a Sentinel (e.g., "Process `mimikatz.exe` started") |
+| **Alert**        | One or more correlated events that indicate a potential threat             |
+| **Incident**     | A confirmed threat requiring coordinated response                          |
+| **Verdict**      | The Core's decision: `auto_respond`, `escalate`, or `dismiss`              |
+| **Playbook**     | A sequence of Striker actions to execute for a specific threat type        |
+| **Threat Score** | A 0-100 score indicating the severity and confidence of a threat           |
+| **Blast Radius** | The scope of impact that an automated response could have                  |
 
 ### 1.4 User Roles
 
-| Role | Can Do | Cannot Do |
-|------|--------|-----------|
-| **Administrator** | Everything — deploy, configure, manage users | — |
-| **Analyst** | View dashboards, triage alerts, approve escalated actions | Modify system configuration, manage users |
-| **Operator** | Monitor active incidents, trigger manual responses | Modify policies, manage users |
-| **Auditor** | View audit logs and compliance reports | Modify anything |
+| Role              | Can Do                                                    | Cannot Do                                 |
+|-------------------|-----------------------------------------------------------|-------------------------------------------|
+| **Administrator** | Everything — deploy, configure, manage users              | —                                         |
+| **Analyst**       | View dashboards, triage alerts, approve escalated actions | Modify system configuration, manage users |
+| **Operator**      | Monitor active incidents, trigger manual responses        | Modify policies, manage users             |
+| **Auditor**       | View audit logs and compliance reports                    | Modify anything                           |
 
 ---
 
@@ -87,13 +89,13 @@ Naga-7 (N7) is an open-source, multi-level AI agent system for continuous securi
 
 ### 2.1 Prerequisites
 
-| Requirement | Minimum |
-|-------------|---------|
-| Docker or Podman | v24+ |
-| Docker Compose | v2.20+ |
-| Available RAM | 8 GB (small deployment) |
-| Available Disk | 50 GB (data storage) |
-| Network | Outbound HTTPS (for threat intel feeds) |
+| Requirement      | Minimum                                 |
+|------------------|-----------------------------------------|
+| Docker or Podman | v24+                                    |
+| Docker Compose   | v2.20+                                  |
+| Available RAM    | 8 GB (small deployment)                 |
+| Available Disk   | 50 GB (data storage)                    |
+| Network          | Outbound HTTPS (for threat intel feeds) |
 
 For Kubernetes deployments, see [Section 2.4](#24-kubernetes-deployment).
 
@@ -212,7 +214,7 @@ core:
   api:
     host: 0.0.0.0
     port: 8080
-    cors_origins: ["http://localhost:3000"]
+    cors_origins: [ "http://localhost:3000" ]
 
   # Database
   database:
@@ -310,6 +312,7 @@ The main dashboard shows:
 The Alerts page lists all active alerts with filtering and triage capabilities:
 
 **Filtering:**
+
 - By severity: Critical, High, Medium, Low, Informational
 - By status: New, Acknowledged, Investigating, Resolved, Dismissed
 - By time range: Last hour, 24h, 7 days, custom
@@ -317,6 +320,7 @@ The Alerts page lists all active alerts with filtering and triage capabilities:
 - By affected asset: hostname, IP, or asset group
 
 **Triage Actions:**
+
 - **Acknowledge:** Mark as seen, assigned to you.
 - **Investigate:** Open investigation view with full event timeline.
 - **Escalate:** Manually escalate to a higher-priority team.
@@ -336,16 +340,16 @@ Active incidents with their full lifecycle:
 
 Monitor all deployed Sentinels and Strikers:
 
-| Column | Description |
-|--------|-------------|
-| Agent ID | Unique identifier |
-| Type | Sentinel or Striker |
-| Subtype | network, endpoint, cloud, log, forensic |
-| Status | Active (green), Unhealthy (yellow), Retired (gray) |
-| Zone | Deployment zone |
-| Last Heartbeat | Time since last heartbeat |
-| CPU / Memory | Current resource usage |
-| Config Version | Applied configuration version |
+| Column         | Description                                        |
+|----------------|----------------------------------------------------|
+| Agent ID       | Unique identifier                                  |
+| Type           | Sentinel or Striker                                |
+| Subtype        | network, endpoint, cloud, log, forensic            |
+| Status         | Active (green), Unhealthy (yellow), Retired (gray) |
+| Zone           | Deployment zone                                    |
+| Last Heartbeat | Time since last heartbeat                          |
+| CPU / Memory   | Current resource usage                             |
+| Config Version | Applied configuration version                      |
 
 ### 4.5 Real-Time Notifications
 
@@ -356,13 +360,13 @@ Configure notification rules under **Settings > Notifications:**
 notification:
   name: "Critical alerts to Slack"
   trigger:
-    alert_severity: [critical]
+    alert_severity: [ critical ]
   channels:
     - type: slack
       webhook_url: https://hooks.slack.com/services/xxx/yyy/zzz
       channel: "#security-alerts"
     - type: email
-      recipients: ["soc@company.com"]
+      recipients: [ "soc@company.com" ]
 ```
 
 ---
@@ -372,6 +376,7 @@ notification:
 ### 5.1 Deploying a New Sentinel
 
 **Via Dashboard:**
+
 1. Navigate to **Agents > Deploy New Agent**.
 2. Select Sentinel type (Network, Endpoint, Cloud, Log).
 3. Configure monitoring scope and zone.
@@ -379,6 +384,7 @@ notification:
 5. Deploy the Sentinel to the target host/environment.
 
 **Via CLI:**
+
 ```bash
 # Generate agent credentials
 n7-cli agent create \
@@ -397,6 +403,7 @@ ssh target-host 'systemctl start n7-sentinel'
 Each Sentinel type has specific configuration:
 
 **Endpoint Sentinel:**
+
 ```yaml
 sentinel:
   type: endpoint
@@ -417,11 +424,11 @@ sentinel:
         - "*.tmp"
     auth_monitor:
       enabled: true
-      sources: [pam, sshd, sudo]
+      sources: [ pam, sshd, sudo ]
     yara_scanner:
       enabled: true
       rules_path: /etc/n7/yara-rules/
-      scan_paths: [/tmp, /var/tmp, /dev/shm]
+      scan_paths: [ /tmp, /var/tmp, /dev/shm ]
       scan_interval_seconds: 300
 
   resource_limits:
@@ -430,6 +437,7 @@ sentinel:
 ```
 
 **Network Sentinel:**
+
 ```yaml
 sentinel:
   type: network
@@ -441,7 +449,7 @@ sentinel:
       mode: af_packet  # or pcap
     flow_collector:
       enabled: true
-      protocols: [netflow_v9, ipfix]
+      protocols: [ netflow_v9, ipfix ]
       listen_port: 2055
     dns_monitor:
       enabled: true
@@ -456,11 +464,12 @@ sentinel:
 ```
 
 **Cloud Sentinel (AWS):**
+
 ```yaml
 sentinel:
   type: cloud
   provider: aws
-  regions: [us-east-1, us-west-2]
+  regions: [ us-east-1, us-west-2 ]
   probes:
     cloudtrail:
       enabled: true
@@ -488,14 +497,14 @@ detection:
   name: "Cryptominer Process Detection"
   description: "Detects known cryptomining processes"
   severity: medium
-  mitre: [T1496]
+  mitre: [ T1496 ]
 
   match:
     event_class: process_creation
     conditions:
       - field: process.name
         operator: in
-        value: ["xmrig", "minerd", "cpuminer", "bfgminer"]
+        value: [ "xmrig", "minerd", "cpuminer", "bfgminer" ]
 
   # OR match by CPU characteristics
   alternate_match:
@@ -514,6 +523,7 @@ detection:
 **Dashboard:** The Agents page shows real-time health for all Sentinels.
 
 **CLI:**
+
 ```bash
 # List all Sentinels
 n7-cli agents list --type sentinel
@@ -526,6 +536,7 @@ n7-cli agents logs <agent-id> --tail 100
 ```
 
 **Alerts:** The Core automatically generates alerts when:
+
 - A Sentinel misses 3+ heartbeats (configurable).
 - A Sentinel reports resource usage above thresholds.
 - A Sentinel's binary hash doesn't match the expected value.
@@ -550,20 +561,22 @@ n7-cli agent create \
 
 ### 6.2 Striker Capabilities
 
-Each Striker declares what actions it can perform. The Core only dispatches actions to Strikers with matching capabilities:
+Each Striker declares what actions it can perform. The Core only dispatches actions to Strikers with matching
+capabilities:
 
-| Striker Type | Available Capabilities |
-|-------------|----------------------|
-| **Network** | `block_ip`, `unblock_ip`, `isolate_segment`, `restore_segment`, `sinkhole_dns`, `restore_dns`, `kill_connection` |
+| Striker Type | Available Capabilities                                                                                                                 |
+|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| **Network**  | `block_ip`, `unblock_ip`, `isolate_segment`, `restore_segment`, `sinkhole_dns`, `restore_dns`, `kill_connection`                       |
 | **Endpoint** | `kill_process`, `quarantine_file`, `restore_file`, `disable_user`, `enable_user`, `rotate_credentials`, `isolate_host`, `restore_host` |
-| **Cloud** | `revoke_credentials`, `restrict_security_group`, `restore_security_group`, `snapshot_instance`, `isolate_resource`, `restore_resource` |
-| **Forensic** | `capture_memory`, `capture_disk`, `capture_pcap`, `collect_artifacts` |
+| **Cloud**    | `revoke_credentials`, `restrict_security_group`, `restore_security_group`, `snapshot_instance`, `isolate_resource`, `restore_resource` |
+| **Forensic** | `capture_memory`, `capture_disk`, `capture_pcap`, `collect_artifacts`                                                                  |
 
 ### 6.3 Manual Action Execution
 
 Operators can trigger Striker actions manually via the dashboard or API:
 
 **Dashboard:**
+
 1. Navigate to the incident or alert.
 2. Click **Take Action**.
 3. Select the action type and target.
@@ -571,6 +584,7 @@ Operators can trigger Striker actions manually via the dashboard or API:
 5. Confirm execution.
 
 **API:**
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/actions \
   -H "Authorization: Bearer <api-key>" \
@@ -594,6 +608,7 @@ Every Striker action can be rolled back:
 **Dashboard:** Navigate to the incident > Actions tab > Click **Rollback** next to the action.
 
 **API:**
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/actions/<action-id>/rollback \
   -H "Authorization: Bearer <api-key>" \
@@ -625,7 +640,7 @@ detection:
   description: "What this rule detects"
   severity: critical|high|medium|low|informational
   enabled: true               # Can be disabled without deletion
-  mitre: [T1059.001]          # MITRE ATT&CK technique IDs
+  mitre: [ T1059.001 ]          # MITRE ATT&CK technique IDs
 
   match:
     event_class: process_creation|network_connection|file_change|authentication|...
@@ -634,12 +649,12 @@ detection:
         operator: eq|neq|in|not_in|contains|regex|gte|lte|gt|lt|exists
         value: <comparison value>
 
-  exceptions:                  # Optional: known-good patterns to skip
+  exceptions: # Optional: known-good patterns to skip
     - field: process.name
       operator: eq
       value: "known-good-tool.exe"
 
-  metadata:                    # Optional: additional context
+  metadata: # Optional: additional context
     author: "your-name"
     created: "2026-02-17"
     references:
@@ -655,6 +670,7 @@ Navigate to **Configuration > Detection Rules** to create, edit, enable/disable,
 Place rule files in `/etc/n7/rules/` (or the configured path). Sentinels hot-reload rules when files change.
 
 **Via API:**
+
 ```bash
 # List rules
 curl http://localhost:8080/api/v1/rules
@@ -697,27 +713,27 @@ escalation_policy:
 
   rules:
     # Rules are evaluated in order — first match wins
-    - severity: [critical, high]
+    - severity: [ critical, high ]
       action: escalate
-      notify: [slack, pagerduty, email]
+      notify: [ slack, pagerduty, email ]
       message: "Critical/High threat detected — human review required"
 
-    - severity: [medium]
+    - severity: [ medium ]
       confidence_threshold: 0.85
       action: auto_respond
       playbook: "contain-medium"
 
-    - severity: [medium]
+    - severity: [ medium ]
       confidence_threshold: 0.0
       action: escalate
-      notify: [slack]
+      notify: [ slack ]
 
-    - severity: [low]
+    - severity: [ low ]
       confidence_threshold: 0.70
       action: auto_respond
       playbook: "contain-low"
 
-    - severity: [low, informational]
+    - severity: [ low, informational ]
       action: dismiss
 
   # Safety limits for automated responses
@@ -751,6 +767,7 @@ core:
 ```
 
 In dry-run mode:
+
 - The Decision Engine still evaluates alerts and produces verdicts.
 - Verdicts are logged with `[DRY-RUN]` prefix.
 - No actions are dispatched to Strikers.
@@ -789,7 +806,7 @@ playbook:
       action: forensic_capture
       params:
         target: "{{ target_host }}"
-        capture_types: [process_list, network_connections, open_files]
+        capture_types: [ process_list, network_connections, open_files ]
       on_failure: continue
       timeout: 5m
 
@@ -816,7 +833,7 @@ playbook:
       name: "Notify incident response team"
       action: notify
       params:
-        channels: [slack, pagerduty]
+        channels: [ slack, pagerduty ]
         severity: high
         message: |
           Host {{ target_host }} ({{ target_ip }}) has been isolated.
@@ -828,6 +845,7 @@ playbook:
 ### 9.2 Creating Playbooks
 
 **Via Dashboard:**
+
 1. Navigate to **Configuration > Playbooks**.
 2. Click **Create New Playbook**.
 3. Use the visual editor to add steps, set parameters, and configure failure handling.
@@ -839,6 +857,7 @@ Place playbook files in `/etc/n7/playbooks/` or upload via the API.
 ### 9.3 Testing Playbooks
 
 **Dry-Run Execution:**
+
 ```bash
 n7-cli playbook test pb-isolate-compromised-host \
   --param target_host=test-server-01 \
@@ -917,13 +936,13 @@ Analyst decides:
 
 ### 10.3 Incident Lifecycle
 
-| Status | Description | Transitions To |
-|--------|-------------|---------------|
-| **Open** | Incident created, awaiting response | Contained, Closed |
-| **Contained** | Threat contained but not fully remediated | Eradicated, Open (if containment fails) |
-| **Eradicated** | Root cause removed | Recovered |
-| **Recovered** | Systems restored to normal operation | Closed |
-| **Closed** | Incident fully resolved | — (can be reopened) |
+| Status         | Description                               | Transitions To                          |
+|----------------|-------------------------------------------|-----------------------------------------|
+| **Open**       | Incident created, awaiting response       | Contained, Closed                       |
+| **Contained**  | Threat contained but not fully remediated | Eradicated, Open (if containment fails) |
+| **Eradicated** | Root cause removed                        | Recovered                               |
+| **Recovered**  | Systems restored to normal operation      | Closed                                  |
+| **Closed**     | Incident fully resolved                   | — (can be reopened)                     |
 
 ### 10.4 Post-Incident Review
 
@@ -953,29 +972,29 @@ curl http://localhost:8080/api/v1/...?api_key=n7_api_xxxxxxxxxx
 
 ### 11.2 Common Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/alerts` | List alerts (paginated, filterable) |
-| GET | `/api/v1/alerts/{id}` | Get alert details |
-| PATCH | `/api/v1/alerts/{id}` | Update alert status |
-| GET | `/api/v1/incidents` | List incidents |
-| GET | `/api/v1/incidents/{id}` | Get incident details |
-| POST | `/api/v1/incidents/{id}/actions` | Trigger manual action |
-| GET | `/api/v1/agents` | List all agents |
-| GET | `/api/v1/agents/{id}` | Get agent details |
-| POST | `/api/v1/agents/{id}/config` | Push config to agent |
-| GET | `/api/v1/events` | Query events (time-series) |
-| GET | `/api/v1/rules` | List detection rules |
-| POST | `/api/v1/rules` | Create detection rule |
-| PUT | `/api/v1/rules/{id}` | Update detection rule |
-| DELETE | `/api/v1/rules/{id}` | Delete detection rule |
-| GET | `/api/v1/playbooks` | List playbooks |
-| POST | `/api/v1/playbooks` | Create playbook |
-| GET | `/api/v1/audit` | Query audit log |
-| POST | `/api/v1/actions/{id}/rollback` | Rollback an action |
-| GET | `/healthz` | Health check |
-| GET | `/readyz` | Readiness check |
-| GET | `/api/v1/openapi.json` | OpenAPI specification |
+| Method | Endpoint                         | Description                         |
+|--------|----------------------------------|-------------------------------------|
+| GET    | `/api/v1/alerts`                 | List alerts (paginated, filterable) |
+| GET    | `/api/v1/alerts/{id}`            | Get alert details                   |
+| PATCH  | `/api/v1/alerts/{id}`            | Update alert status                 |
+| GET    | `/api/v1/incidents`              | List incidents                      |
+| GET    | `/api/v1/incidents/{id}`         | Get incident details                |
+| POST   | `/api/v1/incidents/{id}/actions` | Trigger manual action               |
+| GET    | `/api/v1/agents`                 | List all agents                     |
+| GET    | `/api/v1/agents/{id}`            | Get agent details                   |
+| POST   | `/api/v1/agents/{id}/config`     | Push config to agent                |
+| GET    | `/api/v1/events`                 | Query events (time-series)          |
+| GET    | `/api/v1/rules`                  | List detection rules                |
+| POST   | `/api/v1/rules`                  | Create detection rule               |
+| PUT    | `/api/v1/rules/{id}`             | Update detection rule               |
+| DELETE | `/api/v1/rules/{id}`             | Delete detection rule               |
+| GET    | `/api/v1/playbooks`              | List playbooks                      |
+| POST   | `/api/v1/playbooks`              | Create playbook                     |
+| GET    | `/api/v1/audit`                  | Query audit log                     |
+| POST   | `/api/v1/actions/{id}/rollback`  | Rollback an action                  |
+| GET    | `/healthz`                       | Health check                        |
+| GET    | `/readyz`                        | Readiness check                     |
+| GET    | `/api/v1/openapi.json`           | OpenAPI specification               |
 
 ### 11.3 Webhook Integration
 
@@ -996,6 +1015,7 @@ Webhook payloads are signed with HMAC-SHA256. Verify the signature:
 ```python
 import hmac, hashlib
 
+
 def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
     expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
     return hmac.compare_digest(f"sha256={expected}", signature)
@@ -1010,6 +1030,7 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
 ```python
 # my_custom_probe/probe.py
 from n7.sentinel.framework import Probe, RawObservation
+
 
 class MyCustomProbe(Probe):
     """Monitors a custom data source."""
@@ -1052,6 +1073,7 @@ my_custom_probe = "my_custom_probe.probe:MyCustomProbe"
 # my_custom_action/action.py
 from n7.striker.framework import StrikerAction, ActionResult, RollbackInfo
 
+
 class MyCustomAction(StrikerAction):
     """Performs a custom response action."""
 
@@ -1092,11 +1114,13 @@ class MyCustomAction(StrikerAction):
 import pytest
 from my_custom_probe.probe import MyCustomProbe
 
+
 @pytest.mark.asyncio
 async def test_probe_initialization():
     probe = MyCustomProbe()
     await probe.initialize({"source_url": "http://test"})
     assert probe.source_url == "http://test"
+
 
 @pytest.mark.asyncio
 async def test_probe_observation():
@@ -1117,6 +1141,7 @@ async def test_probe_observation():
 ### 13.1 User Management
 
 **Create User:**
+
 ```bash
 n7-cli users create \
   --username analyst01 \
@@ -1125,6 +1150,7 @@ n7-cli users create \
 ```
 
 **Roles:**
+
 ```bash
 n7-cli users set-role analyst01 operator  # Change role
 n7-cli users disable analyst01            # Disable account
@@ -1134,6 +1160,7 @@ n7-cli users list                         # List all users
 ### 13.2 Certificate Management
 
 **Rotate Root CA (requires downtime):**
+
 ```bash
 n7-cli certs rotate-ca \
   --new-ca /path/to/new-ca.crt \
@@ -1146,6 +1173,7 @@ n7-cli certs rotate-ca \
 ### 13.3 Backup and Restore
 
 **Database Backup:**
+
 ```bash
 # Automated daily backup (configured in core.yaml)
 core:
@@ -1159,6 +1187,7 @@ n7-cli backup create --output /backups/n7-backup-$(date +%Y%m%d).sql
 ```
 
 **Restore:**
+
 ```bash
 n7-cli backup restore --input /backups/n7-backup-20260217.sql
 ```
@@ -1166,6 +1195,7 @@ n7-cli backup restore --input /backups/n7-backup-20260217.sql
 ### 13.4 Log Management
 
 **View Core Logs:**
+
 ```bash
 # Docker Compose
 docker compose logs n7-core --tail 100 -f
@@ -1178,6 +1208,7 @@ docker compose logs n7-core | jq 'select(.level == "ERROR")'
 ```
 
 **Log Levels:** Configurable per component:
+
 ```yaml
 core:
   logging:
@@ -1236,6 +1267,7 @@ curl http://localhost:8080/metrics
 **Symptoms:** Deployed Sentinel, but it doesn't appear in the Agents page.
 
 **Check:**
+
 1. Verify Sentinel can reach NATS: `n7-sentinel --check-connectivity`
 2. Check Sentinel logs for TLS errors: `journalctl -u n7-sentinel`
 3. Verify certificate is valid: `openssl x509 -in /etc/n7/certs/sentinel.crt -text`
@@ -1246,6 +1278,7 @@ curl http://localhost:8080/metrics
 **Symptoms:** Sentinel is active but no events appear in the dashboard.
 
 **Check:**
+
 1. Sentinel is generating events: Check Sentinel logs for `events emitted` messages.
 2. NATS is receiving events: `nats sub "n7.events.>" --count 5`
 3. Core is consuming events: Check Core logs for pipeline activity.
@@ -1256,6 +1289,7 @@ curl http://localhost:8080/metrics
 **Symptoms:** Alerts are created but no automated response occurs.
 
 **Check:**
+
 1. Dry-run mode is disabled: `N7_CORE_DECISION_DRY_RUN=false`
 2. Escalation policy has auto-respond rules for the alert severity.
 3. Confidence threshold is met.
@@ -1268,6 +1302,7 @@ curl http://localhost:8080/metrics
 **Symptoms:** Endpoint Sentinel consuming too much CPU.
 
 **Fix:**
+
 1. Reduce probe frequency in `sentinel.yaml`.
 2. Narrow file integrity monitoring paths.
 3. Reduce YARA scan frequency.
@@ -1307,25 +1342,33 @@ n7-cli diagnostics export --output /tmp/n7-diag.tar.gz
 ## 15. FAQ
 
 **Q: Will N7 replace my SIEM?**
-A: No. N7 integrates with your existing SIEM. Sentinels can ingest events from your SIEM (via syslog, API), and N7 alerts can be forwarded to your SIEM. N7 adds the autonomous detection-and-response layer that SIEMs lack.
+A: No. N7 integrates with your existing SIEM. Sentinels can ingest events from your SIEM (via syslog, API), and N7
+alerts can be forwarded to your SIEM. N7 adds the autonomous detection-and-response layer that SIEMs lack.
 
 **Q: Is it safe to let N7 automatically respond to threats?**
-A: N7 has multiple safety layers: configurable escalation policies, blast-radius limits, cool-down periods, dry-run mode, and mandatory human escalation for critical threats. Start with dry-run mode, observe the decisions N7 would make, tune your policies, then gradually enable auto-response for low/medium severity threats.
+A: N7 has multiple safety layers: configurable escalation policies, blast-radius limits, cool-down periods, dry-run
+mode, and mandatory human escalation for critical threats. Start with dry-run mode, observe the decisions N7 would make,
+tune your policies, then gradually enable auto-response for low/medium severity threats.
 
 **Q: What happens if N7 makes a mistake?**
-A: Every automated action can be rolled back. N7 captures pre-action state and provides one-click rollback via the dashboard or API. The full reasoning for every decision is logged for review.
+A: Every automated action can be rolled back. N7 captures pre-action state and provides one-click rollback via the
+dashboard or API. The full reasoning for every decision is logged for review.
 
 **Q: Can I use N7 without the AI/ML features?**
-A: Yes. The anomaly detection (ML-based) is optional. You can run N7 with signature-based and rule-based detection only. The decision engine uses configurable rules, not opaque ML models.
+A: Yes. The anomaly detection (ML-based) is optional. You can run N7 with signature-based and rule-based detection only.
+The decision engine uses configurable rules, not opaque ML models.
 
 **Q: What about performance impact on production systems?**
-A: Endpoint Sentinels are designed for < 5% CPU and < 256 MB RAM overhead. They use kernel-level instrumentation (eBPF on Linux) to minimize impact. Resource limits are enforced and configurable.
+A: Endpoint Sentinels are designed for < 5% CPU and < 256 MB RAM overhead. They use kernel-level instrumentation (eBPF
+on Linux) to minimize impact. Resource limits are enforced and configurable.
 
 **Q: How does N7 handle encrypted traffic?**
-A: Network Sentinels analyze traffic metadata (flow data, DNS, TLS handshakes) rather than decrypting content. For deeper inspection, integrate with a TLS inspection proxy that exports decrypted traffic to N7.
+A: Network Sentinels analyze traffic metadata (flow data, DNS, TLS handshakes) rather than decrypting content. For
+deeper inspection, integrate with a TLS inspection proxy that exports decrypted traffic to N7.
 
 **Q: Can I write custom Sentinels and Strikers?**
-A: Yes. N7's plugin system supports custom probes, detection rules, response actions, enrichers, and notification channels. See [Section 12](#12-plugin-development).
+A: Yes. N7's plugin system supports custom probes, detection rules, response actions, enrichers, and notification
+channels. See [Section 12](#12-plugin-development).
 
 **Q: What license is N7 under?**
 A: Apache 2.0. You can use, modify, and distribute N7 freely, including in commercial products.

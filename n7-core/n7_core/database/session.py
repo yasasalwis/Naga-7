@@ -1,5 +1,5 @@
-
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
 from ..config import settings
 
 # Async Engine
@@ -8,7 +8,7 @@ engine = create_async_engine(
     echo=settings.DEBUG,
     future=True,
     pool_pre_ping=True,  # Check connection liveness before checkout
-    pool_size=20,        # Production tuning
+    pool_size=20,  # Production tuning
     max_overflow=10
 )
 
@@ -19,6 +19,7 @@ async_session_maker = async_sessionmaker(
     expire_on_commit=False,
     autoflush=False
 )
+
 
 async def get_session() -> AsyncSession:
     """

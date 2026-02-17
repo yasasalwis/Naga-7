@@ -1,5 +1,6 @@
 from datetime import datetime
 
+
 def print_banner(service_name: str, version: str = "1.0.0"):
     """
     Print the Naga-7 startup banner with comprehensive information.
@@ -38,12 +39,12 @@ def print_banner(service_name: str, version: str = "1.0.0"):
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠳⢦⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⣶⠟⠋⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠒⠲⠤⠤⢤⣄⣀⣀⣀⣀⣀⣠⣤⣤⣤⡤⠶⠶⠛⠛⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 """
-    
+
     current_year = datetime.now().year
-    
+
     # Print the ASCII art
     print(banner)
-    
+
     # Print comprehensive information
     print("=" * 80)
     print(f"  NAGA-7 (N7) - Multi-Level AI Agent Security System")

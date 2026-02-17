@@ -19,7 +19,7 @@ CORRELATION_RULES = {
         "mitre_tactics": ["TA0001"],  # Initial Access
         "mitre_techniques": ["T1110"]  # Brute Force
     },
-    
+
     # Rule 2: Lateral Movement Detection
     "lateral_movement": {
         "name": "Lateral Movement Detection",
@@ -41,7 +41,7 @@ CORRELATION_RULES = {
         "mitre_tactics": ["TA0008"],  # Lateral Movement
         "mitre_techniques": ["T1021"]  # Remote Services
     },
-    
+
     # Rule 3: Data Exfiltration Detection
     "data_exfiltration": {
         "name": "Data Exfiltration Detection",
@@ -57,7 +57,7 @@ CORRELATION_RULES = {
         "mitre_tactics": ["TA0010"],  # Exfiltration
         "mitre_techniques": ["T1041"]  # Exfiltration Over C2 Channel
     },
-    
+
     # Rule 4: Credential Dumping
     "credential_dumping": {
         "name": "Credential Dumping Detection",
@@ -72,7 +72,7 @@ CORRELATION_RULES = {
         "mitre_tactics": ["TA0006"],  # Credential Access
         "mitre_techniques": ["T1003"]  # OS Credential Dumping
     },
-    
+
     # Rule 5: Ransomware Behavior
     "ransomware_behavior": {
         "name": "Ransomware Behavior Detection",

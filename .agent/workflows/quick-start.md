@@ -11,11 +11,13 @@ This guide shows you how to start and stop all Naga-7 services.
 ### Option 1: One-Command Startup (Recommended)
 
 **On macOS/Linux:**
+
 ```bash
 ./start.sh
 ```
 
 **On Windows:**
+
 ```cmd
 start.bat
 ```
@@ -25,11 +27,13 @@ start.bat
 If dependencies are already installed and you just want to restart services:
 
 **On macOS/Linux:**
+
 ```bash
 ./start.sh --skip-deps
 ```
 
 **On Windows:**
+
 ```cmd
 start.bat --skip-deps
 ```
@@ -57,6 +61,7 @@ The startup script will:
 ### Stop All Services
 
 **On macOS/Linux:**
+
 ```bash
 # If using start.sh (press Ctrl+C in the terminal)
 # OR use the stop script:
@@ -64,6 +69,7 @@ The startup script will:
 ```
 
 **On Windows:**
+
 ```cmd
 stop.bat
 ```
@@ -73,11 +79,13 @@ stop.bat
 To stop only application services but keep infrastructure (NATS, PostgreSQL, Redis) running:
 
 **On macOS/Linux:**
+
 ```bash
 ./stop.sh --keep-infra
 ```
 
 **On Windows:**
+
 ```cmd
 stop.bat --keep-infra
 ```
@@ -86,12 +94,12 @@ stop.bat --keep-infra
 
 Once all services are running, access them at:
 
-| Service | URL | Description |
-|---------|-----|-------------|
-| **Dashboard** | http://localhost:5173 | Web UI for management |
-| **API Gateway** | http://localhost:8000 | REST API endpoint |
-| **API Docs** | http://localhost:8000/docs | Interactive API documentation |
-| **NATS Monitor** | http://localhost:8222 | NATS message broker status |
+| Service          | URL                        | Description                   |
+|------------------|----------------------------|-------------------------------|
+| **Dashboard**    | http://localhost:5173      | Web UI for management         |
+| **API Gateway**  | http://localhost:8000      | REST API endpoint             |
+| **API Docs**     | http://localhost:8000/docs | Interactive API documentation |
+| **NATS Monitor** | http://localhost:8222      | NATS message broker status    |
 
 ## Monitoring
 

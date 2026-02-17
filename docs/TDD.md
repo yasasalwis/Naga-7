@@ -31,7 +31,8 @@
 
 ### 1.1 Purpose
 
-This Technical Design Document defines the system architecture, component design, technology choices, and implementation patterns for Naga-7. It serves as the technical blueprint for development.
+This Technical Design Document defines the system architecture, component design, technology choices, and implementation
+patterns for Naga-7. It serves as the technical blueprint for development.
 
 ### 1.2 Audience
 
@@ -48,7 +49,8 @@ Software engineers, security engineers, DevOps engineers, and open-source contri
 
 ### 2.1 High-Level Architecture
 
-N7 follows a **hub-and-spoke architecture** with the Core as the central hub and Sentinels/Strikers as distributed spokes.
+N7 follows a **hub-and-spoke architecture** with the Core as the central hub and Sentinels/Strikers as distributed
+spokes.
 
 ```
                               ┌─────────────────────┐
@@ -99,7 +101,8 @@ N7 follows a **hub-and-spoke architecture** with the Core as the central hub and
 
 ### 2.2 Design Principles
 
-1. **Defense in Depth:** N7 itself is designed with layered security — compromising one agent does not compromise the system.
+1. **Defense in Depth:** N7 itself is designed with layered security — compromising one agent does not compromise the
+   system.
 2. **Fail-Safe Defaults:** When uncertain, N7 escalates to humans rather than taking autonomous action.
 3. **Explainability:** Every automated decision includes a machine-readable and human-readable reasoning trace.
 4. **Loose Coupling:** Components communicate via message bus; any component can be replaced or upgraded independently.
@@ -109,15 +112,15 @@ N7 follows a **hub-and-spoke architecture** with the Core as the central hub and
 
 ### 2.3 Component Ownership
 
-| Component | Primary Language | Repository Path |
-|-----------|-----------------|-----------------|
-| N7-Core | Python 3.12+ | `n7-core/` |
-| N7-Sentinels (Framework) | Python 3.12+ | `n7-sentinels/` |
-| Sentinel Probes (perf-critical) | Rust | `n7-sentinels/probes/` |
-| N7-Strikers (Framework) | Python 3.12+ | `n7-strikers/` |
-| Dashboard | TypeScript (React) | `n7-dashboard/` |
-| Shared Schemas | Protobuf + JSON Schema | `schemas/` |
-| Deployment | Helm / Docker Compose | `deploy/` |
+| Component                       | Primary Language       | Repository Path        |
+|---------------------------------|------------------------|------------------------|
+| N7-Core                         | Python 3.12+           | `n7-core/`             |
+| N7-Sentinels (Framework)        | Python 3.12+           | `n7-sentinels/`        |
+| Sentinel Probes (perf-critical) | Rust                   | `n7-sentinels/probes/` |
+| N7-Strikers (Framework)         | Python 3.12+           | `n7-strikers/`         |
+| Dashboard                       | TypeScript (React)     | `n7-dashboard/`        |
+| Shared Schemas                  | Protobuf + JSON Schema | `schemas/`             |
+| Deployment                      | Helm / Docker Compose  | `deploy/`              |
 
 ---
 
@@ -125,37 +128,37 @@ N7 follows a **hub-and-spoke architecture** with the Core as the central hub and
 
 ### 3.1 Core Technologies
 
-| Layer | Technology | Rationale |
-|-------|-----------|-----------|
-| **Primary Language** | Python 3.12+ | Rich security ecosystem, AI/ML libraries, async support, large contributor pool |
-| **Performance-Critical Probes** | Rust | Memory safety, zero-overhead abstractions, eBPF tooling |
-| **Message Bus** | NATS 2.10+ (default) / Kafka 3.5+ (enterprise) | NATS: lightweight, built-in JetStream persistence. Kafka: for high-volume enterprise deployments |
-| **Primary Database** | PostgreSQL 16+ | ACID compliance, JSONB support, mature ecosystem |
-| **Time-Series Data** | TimescaleDB (PostgreSQL extension) | Hypertable partitioning for events, native SQL, compression |
-| **Cache / PubSub** | Redis 7+ | In-memory speed for threat intel cache, real-time dashboard updates |
-| **Object Storage** | MinIO (self-hosted) / S3-compatible | Forensic evidence, long-term event archival |
-| **Dashboard** | React 18+ / TypeScript | Component ecosystem, real-time updates via WebSocket |
-| **API Framework** | FastAPI | Async, OpenAPI auto-generation, Pydantic validation |
-| **Serialization** | Protocol Buffers (inter-agent), JSON (API) | Protobuf for performance, JSON for human readability |
-| **Container Runtime** | Docker / Podman | OCI-compliant, rootless container support |
-| **Orchestration** | Kubernetes / Docker Compose | K8s for production, Compose for development/small deployments |
+| Layer                           | Technology                                     | Rationale                                                                                        |
+|---------------------------------|------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| **Primary Language**            | Python 3.12+                                   | Rich security ecosystem, AI/ML libraries, async support, large contributor pool                  |
+| **Performance-Critical Probes** | Rust                                           | Memory safety, zero-overhead abstractions, eBPF tooling                                          |
+| **Message Bus**                 | NATS 2.10+ (default) / Kafka 3.5+ (enterprise) | NATS: lightweight, built-in JetStream persistence. Kafka: for high-volume enterprise deployments |
+| **Primary Database**            | PostgreSQL 16+                                 | ACID compliance, JSONB support, mature ecosystem                                                 |
+| **Time-Series Data**            | TimescaleDB (PostgreSQL extension)             | Hypertable partitioning for events, native SQL, compression                                      |
+| **Cache / PubSub**              | Redis 7+                                       | In-memory speed for threat intel cache, real-time dashboard updates                              |
+| **Object Storage**              | MinIO (self-hosted) / S3-compatible            | Forensic evidence, long-term event archival                                                      |
+| **Dashboard**                   | React 18+ / TypeScript                         | Component ecosystem, real-time updates via WebSocket                                             |
+| **API Framework**               | FastAPI                                        | Async, OpenAPI auto-generation, Pydantic validation                                              |
+| **Serialization**               | Protocol Buffers (inter-agent), JSON (API)     | Protobuf for performance, JSON for human readability                                             |
+| **Container Runtime**           | Docker / Podman                                | OCI-compliant, rootless container support                                                        |
+| **Orchestration**               | Kubernetes / Docker Compose                    | K8s for production, Compose for development/small deployments                                    |
 
 ### 3.2 Key Libraries
 
-| Domain | Library | Purpose |
-|--------|---------|---------|
-| Async Runtime | `asyncio` + `uvloop` | High-performance event loop |
-| HTTP Client | `httpx` | Async HTTP for integrations |
-| ORM / DB | `SQLAlchemy 2.0` + `asyncpg` | Async database access |
-| Validation | `pydantic` v2 | Data model validation |
-| Task Queue | `arq` (Redis-backed) | Background task processing |
-| CLI | `typer` | Agent CLI tooling |
-| Crypto | `cryptography` | TLS, signing, hashing |
-| eBPF | `bcc` / `libbpf-rs` | Linux kernel instrumentation |
-| YARA | `yara-python` | Malware signature scanning |
-| ML | `scikit-learn`, `pytorch` (optional) | Anomaly detection models |
-| Testing | `pytest`, `pytest-asyncio` | Test framework |
-| Linting | `ruff` | Fast Python linter/formatter |
+| Domain        | Library                              | Purpose                      |
+|---------------|--------------------------------------|------------------------------|
+| Async Runtime | `asyncio` + `uvloop`                 | High-performance event loop  |
+| HTTP Client   | `httpx`                              | Async HTTP for integrations  |
+| ORM / DB      | `SQLAlchemy 2.0` + `asyncpg`         | Async database access        |
+| Validation    | `pydantic` v2                        | Data model validation        |
+| Task Queue    | `arq` (Redis-backed)                 | Background task processing   |
+| CLI           | `typer`                              | Agent CLI tooling            |
+| Crypto        | `cryptography`                       | TLS, signing, hashing        |
+| eBPF          | `bcc` / `libbpf-rs`                  | Linux kernel instrumentation |
+| YARA          | `yara-python`                        | Malware signature scanning   |
+| ML            | `scikit-learn`, `pytorch` (optional) | Anomaly detection models     |
+| Testing       | `pytest`, `pytest-asyncio`           | Test framework               |
+| Linting       | `ruff`                               | Fast Python linter/formatter |
 
 ---
 
@@ -163,7 +166,8 @@ N7 follows a **hub-and-spoke architecture** with the Core as the central hub and
 
 ### 4.1 Core Service Decomposition
 
-The Core runs as a set of cooperating async services within a single process (or distributed across processes for scale).
+The Core runs as a set of cooperating async services within a single process (or distributed across processes for
+scale).
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -212,12 +216,13 @@ Sentinel Event → [Deserialize] → [Validate Schema] → [Normalize]
 **Key Design Decisions:**
 
 - **Async consumer groups:** Multiple consumers per NATS subject/Kafka partition for parallel processing.
-- **Back-pressure handling:** If enrichment or persistence is slow, the pipeline applies back-pressure to the message bus consumer (NATS flow control / Kafka consumer lag).
+- **Back-pressure handling:** If enrichment or persistence is slow, the pipeline applies back-pressure to the message
+  bus consumer (NATS flow control / Kafka consumer lag).
 - **Enrichment pipeline:** Enrichment is plugin-based. Built-in enrichers include:
-  - Asset inventory lookup (which host/service does this event belong to?)
-  - GeoIP resolution for external IPs
-  - Threat intelligence IOC matching (IP, domain, file hash)
-  - Historical context (has this entity been seen in prior alerts?)
+    - Asset inventory lookup (which host/service does this event belong to?)
+    - GeoIP resolution for external IPs
+    - Threat intelligence IOC matching (IP, domain, file hash)
+    - Historical context (has this entity been seen in prior alerts?)
 
 **Deduplication Strategy:**
 
@@ -238,7 +243,8 @@ if not await redis.set(dedup_key, 1, nx=True, ex=dedup_window):
 
 1. **Time-Window Correlation:** Group events from the same source/target within a time window.
 2. **Entity-Based Correlation:** Link events sharing common entities (IP, hostname, user, process).
-3. **ATT&CK Chain Correlation:** Detect sequences of techniques that form known attack patterns (e.g., Initial Access → Execution → Persistence).
+3. **ATT&CK Chain Correlation:** Detect sequences of techniques that form known attack patterns (e.g., Initial Access →
+   Execution → Persistence).
 4. **Statistical Correlation:** Flag entity behavior that deviates from established baselines.
 
 **Correlation Rule Format (YAML):**
@@ -386,7 +392,8 @@ class AgentRecord:
     metadata: dict
 ```
 
-**Capability-Based Routing:** When the Decision Engine dispatches a playbook, the Agent Manager selects the appropriate Striker:
+**Capability-Based Routing:** When the Decision Engine dispatches a playbook, the Agent Manager selects the appropriate
+Striker:
 
 ```python
 async def select_striker(action_type: str, target_zone: str) -> AgentRecord:
@@ -449,7 +456,8 @@ Each Sentinel runs as an independent process with the following internal archite
 Probes are the data collection components. They are designed to be:
 
 - **Pluggable:** New probes can be added without modifying the Sentinel framework.
-- **Language-agnostic at the interface level:** Probes communicate with the Detection Engine via shared memory (Rust probes) or async queues (Python probes).
+- **Language-agnostic at the interface level:** Probes communicate with the Detection Engine via shared memory (Rust
+  probes) or async queues (Python probes).
 - **Resource-bounded:** Each probe has a CPU and memory budget enforced by the Agent Runtime.
 
 **Probe Interface (Python):**
@@ -482,15 +490,15 @@ class Probe(ABC):
 The Detection Engine processes raw observations through three detection methods:
 
 1. **Signature Matcher:** Pattern matching against known-bad indicators.
-   - Network: Suricata-compatible rule format.
-   - Endpoint: YARA rules for file scanning, Sigma rules for log patterns.
-   - Cloud: Custom YAML rules for API patterns.
+    - Network: Suricata-compatible rule format.
+    - Endpoint: YARA rules for file scanning, Sigma rules for log patterns.
+    - Cloud: Custom YAML rules for API patterns.
 
 2. **Anomaly Detector:** Statistical and ML-based deviation detection.
-   - Baseline learning period (configurable, default: 7 days).
-   - Isolation Forest for multivariate anomalies.
-   - Time-series decomposition for temporal anomalies.
-   - Incrementally updated models (no full retraining required).
+    - Baseline learning period (configurable, default: 7 days).
+    - Isolation Forest for multivariate anomalies.
+    - Time-series decomposition for temporal anomalies.
+    - Incrementally updated models (no full retraining required).
 
 3. **Rule Engine:** User-defined detection rules in YAML format.
 
@@ -679,6 +687,7 @@ class RollbackEntry:
 ```
 
 Rollback can be triggered:
+
 - **Manually** by an operator via dashboard or API.
 - **Automatically** if a playbook step fails and `on_failure: rollback_all` is set.
 - **On timeout** if the incident is not confirmed within a configurable window.
@@ -743,6 +752,7 @@ message ActionAuthorization {
 ```
 
 Strikers reject any action that:
+
 - Has an invalid or expired authorization token.
 - Requests an action not in the Striker's declared capabilities.
 - Targets a zone the Striker is not assigned to.
@@ -853,17 +863,18 @@ def compute_audit_hash(entry: AuditEntry, prev_hash: str) -> str:
 - **Root CA:** Generated offline, stored in hardware security module (HSM) or encrypted file.
 - **Intermediate CAs:** Per-component type (Core, Sentinel, Striker).
 - **Agent Certificates:** Auto-provisioned on agent registration, short-lived (24h), auto-rotated.
-- **Certificate Rotation:** Agents request new certificates before expiry. The Core validates agent identity before issuing.
+- **Certificate Rotation:** Agents request new certificates before expiry. The Core validates agent identity before
+  issuing.
 
 ### 9.3 Secrets Management
 
-| Secret Type | Storage | Rotation |
-|-------------|---------|----------|
-| Agent private keys | Agent local keystore (encrypted) | 24h (with cert) |
-| Core signing key | Vault / K8s Secret (encrypted) | 30 days |
-| Database credentials | Vault / K8s Secret (encrypted) | 90 days |
-| API keys | PostgreSQL (bcrypt hashed) | User-managed |
-| Integration tokens | Vault / K8s Secret (encrypted) | Per-integration policy |
+| Secret Type          | Storage                          | Rotation               |
+|----------------------|----------------------------------|------------------------|
+| Agent private keys   | Agent local keystore (encrypted) | 24h (with cert)        |
+| Core signing key     | Vault / K8s Secret (encrypted)   | 30 days                |
+| Database credentials | Vault / K8s Secret (encrypted)   | 90 days                |
+| API keys             | PostgreSQL (bcrypt hashed)       | User-managed           |
+| Integration tokens   | Vault / K8s Secret (encrypted)   | Per-integration policy |
 
 ### 9.4 Agent Tamper Detection
 
@@ -967,11 +978,11 @@ services:
 
 ### 10.3 Deployment Sizing Guide
 
-| Deployment Size | Endpoints | Events/sec | Core | Sentinels | Strikers | DB |
-|----------------|-----------|-----------|------|-----------|----------|-----|
-| **Small** | < 100 | < 1,000 | 1x (4 CPU, 8 GB) | Per scope | 2-3 total | Single node |
-| **Medium** | 100-1,000 | 1,000-10,000 | 3x (4 CPU, 16 GB) | Per scope | 4-6 total | Primary + replica |
-| **Large** | 1,000-10,000 | 10,000-100,000 | 5x (8 CPU, 32 GB) | Per scope | 10+ total | HA cluster |
+| Deployment Size | Endpoints    | Events/sec     | Core              | Sentinels | Strikers  | DB                |
+|-----------------|--------------|----------------|-------------------|-----------|-----------|-------------------|
+| **Small**       | < 100        | < 1,000        | 1x (4 CPU, 8 GB)  | Per scope | 2-3 total | Single node       |
+| **Medium**      | 100-1,000    | 1,000-10,000   | 3x (4 CPU, 16 GB) | Per scope | 4-6 total | Primary + replica |
+| **Large**       | 1,000-10,000 | 10,000-100,000 | 5x (8 CPU, 32 GB) | Per scope | 10+ total | HA cluster        |
 
 ---
 
@@ -979,15 +990,15 @@ services:
 
 ### 11.1 Plugin Types
 
-| Plugin Type | Extension Point | Interface |
-|-------------|----------------|-----------|
-| **Custom Sentinel Probe** | New data collection source | `Probe` ABC |
-| **Custom Detection Rule** | New detection logic | YAML rule format |
-| **Custom Correlation Rule** | New correlation patterns | YAML correlation format |
-| **Custom Striker Action** | New response action | `StrikerAction` ABC |
-| **Custom Enricher** | New event enrichment source | `Enricher` ABC |
-| **Custom Notifier** | New notification channel | `Notifier` ABC |
-| **Dashboard Widget** | New dashboard visualization | React component |
+| Plugin Type                 | Extension Point             | Interface               |
+|-----------------------------|-----------------------------|-------------------------|
+| **Custom Sentinel Probe**   | New data collection source  | `Probe` ABC             |
+| **Custom Detection Rule**   | New detection logic         | YAML rule format        |
+| **Custom Correlation Rule** | New correlation patterns    | YAML correlation format |
+| **Custom Striker Action**   | New response action         | `StrikerAction` ABC     |
+| **Custom Enricher**         | New event enrichment source | `Enricher` ABC          |
+| **Custom Notifier**         | New notification channel    | `Notifier` ABC          |
+| **Dashboard Widget**        | New dashboard visualization | React component         |
 
 ### 11.2 Plugin Discovery and Loading
 
@@ -1023,6 +1034,7 @@ Plugins run within the agent process but are sandboxed:
 All components emit Prometheus-compatible metrics:
 
 **Core Metrics:**
+
 - `n7_events_ingested_total` — Total events ingested (by sentinel_type)
 - `n7_events_deduplicated_total` — Events dropped as duplicates
 - `n7_alerts_generated_total` — Alerts created (by severity)
@@ -1033,6 +1045,7 @@ All components emit Prometheus-compatible metrics:
 - `n7_decision_latency_seconds` — Decision engine latency (histogram)
 
 **Sentinel Metrics:**
+
 - `n7_sentinel_observations_total` — Raw observations collected
 - `n7_sentinel_detections_total` — Events emitted (by detection_method)
 - `n7_sentinel_cache_size_bytes` — Offline cache size
@@ -1040,6 +1053,7 @@ All components emit Prometheus-compatible metrics:
 - `n7_sentinel_memory_usage_bytes` — Agent memory usage
 
 **Striker Metrics:**
+
 - `n7_striker_actions_received_total` — Actions received
 - `n7_striker_actions_executed_total` — Actions executed (by status)
 - `n7_striker_action_duration_seconds` — Action execution time (histogram)
@@ -1077,15 +1091,15 @@ This enables operators to trace any action back to the original detection event.
 
 ## 13. Failure Modes and Recovery
 
-| Failure | Detection | Impact | Recovery |
-|---------|-----------|--------|----------|
-| Core process crash | K8s liveness probe | No new verdicts, actions stall | Auto-restart, standby promotion |
-| Message bus outage | Connection error + retry | Sentinels cache locally, Strikers idle | Reconnect with backoff, replay cached events |
-| Database outage | Connection pool errors | No persistence, read-only mode | Failover to replica, queue writes |
-| Sentinel crash | Missed heartbeats | Blind spot in monitoring | Auto-restart, Core marks coverage gap |
-| Striker crash | Missed heartbeats | Cannot execute assigned actions | Core reassigns pending actions to other Strikers |
-| Network partition (Sentinel ↔ Core) | Heartbeat timeout | Sentinel operates autonomously, caches events | Reconnect and replay |
-| Network partition (Striker ↔ Core) | Heartbeat timeout | Striker completes in-flight actions, rejects new ones | Reconnect, Core re-dispatches pending actions |
+| Failure                             | Detection                | Impact                                                | Recovery                                         |
+|-------------------------------------|--------------------------|-------------------------------------------------------|--------------------------------------------------|
+| Core process crash                  | K8s liveness probe       | No new verdicts, actions stall                        | Auto-restart, standby promotion                  |
+| Message bus outage                  | Connection error + retry | Sentinels cache locally, Strikers idle                | Reconnect with backoff, replay cached events     |
+| Database outage                     | Connection pool errors   | No persistence, read-only mode                        | Failover to replica, queue writes                |
+| Sentinel crash                      | Missed heartbeats        | Blind spot in monitoring                              | Auto-restart, Core marks coverage gap            |
+| Striker crash                       | Missed heartbeats        | Cannot execute assigned actions                       | Core reassigns pending actions to other Strikers |
+| Network partition (Sentinel ↔ Core) | Heartbeat timeout        | Sentinel operates autonomously, caches events         | Reconnect and replay                             |
+| Network partition (Striker ↔ Core)  | Heartbeat timeout        | Striker completes in-flight actions, rejects new ones | Reconnect, Core re-dispatches pending actions    |
 
 ---
 
@@ -1107,13 +1121,13 @@ This enables operators to trace any action back to the original detection event.
 
 ### 14.3 Benchmarking Targets
 
-| Scenario | Target | Measurement Method |
-|----------|--------|-------------------|
-| Event ingestion (Core) | 10,000 events/sec | Load test with synthetic events |
-| Alert correlation (Core) | 1,000 alerts/sec | Load test with correlated event streams |
-| Sentinel CPU overhead | < 5% on monitored host | `perf stat` during normal workload |
-| Sentinel memory footprint | < 256 MB RSS | `/proc/pid/status` monitoring |
-| Striker action latency | < 2 seconds (p99) | End-to-end timing in integration tests |
+| Scenario                  | Target                 | Measurement Method                      |
+|---------------------------|------------------------|-----------------------------------------|
+| Event ingestion (Core)    | 10,000 events/sec      | Load test with synthetic events         |
+| Alert correlation (Core)  | 1,000 alerts/sec       | Load test with correlated event streams |
+| Sentinel CPU overhead     | < 5% on monitored host | `perf stat` during normal workload      |
+| Sentinel memory footprint | < 256 MB RSS           | `/proc/pid/status` monitoring           |
+| Striker action latency    | < 2 seconds (p99)      | End-to-end timing in integration tests  |
 
 ---
 

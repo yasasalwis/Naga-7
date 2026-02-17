@@ -28,15 +28,18 @@ app.include_router(users.router, prefix="/api")
 app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
 app.include_router(events.router, prefix="/api/events", tags=["Events"])
 
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 class APIGatewayService(BaseService):
     """
     API Gateway Service.
     Responsibility: Expose REST API for Dashboard and Integrations.
     """
+
     def __init__(self):
         super().__init__("APIGatewayService")
         self._server = None

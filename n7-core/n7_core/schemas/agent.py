@@ -1,8 +1,9 @@
-
-from typing import Dict, Any, List, Optional
-from uuid import UUID
 from datetime import datetime
+from typing import Dict, Any, List
+from uuid import UUID
+
 from pydantic import BaseModel, Field
+
 
 class AgentBase(BaseModel):
     agent_type: str
@@ -11,13 +12,16 @@ class AgentBase(BaseModel):
     capabilities: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
+
 class AgentRegister(AgentBase):
-    pass
+    api_key: str  # Agent's self-generated unique API key
+
 
 class AgentHeartbeat(BaseModel):
     agent_id: UUID
     status: str
     resource_usage: Dict[str, Any] = Field(default_factory=dict)
+
 
 class Agent(AgentBase):
     id: UUID

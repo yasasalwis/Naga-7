@@ -1,7 +1,8 @@
+from typing import Literal
 
-from typing import Literal, Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import PostgresDsn, RedisDsn
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     """
@@ -30,5 +31,6 @@ class Settings(BaseSettings):
 
     # Redis (Cache)
     REDIS_URL: RedisDsn = "redis://localhost:6379/0"
+
 
 settings = Settings()

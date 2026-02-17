@@ -1,10 +1,11 @@
-
-from sqlalchemy import String, JSON, Integer
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
-from sqlalchemy.orm import Mapped, mapped_column
 import uuid
 
+from sqlalchemy import String, JSON
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
 from ..database.base import Base, UUIDMixin, TimestampMixin
+
 
 class Action(Base, UUIDMixin, TimestampMixin):
     """

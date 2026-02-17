@@ -1,17 +1,19 @@
-
 import logging
-import asyncio
+
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
+
 from ..config import settings
 
 logger = logging.getLogger("n7-core.messaging")
+
 
 class NATSClient:
     """
     NATS Client wrapper with auto-reconnect and JetStream support.
     Ref: TDD Section 3.1 & 7.1
     """
+
     def __init__(self):
         self.nc = NATS()
         self.js: Optional[JetStreamContext] = None
@@ -52,5 +54,6 @@ class NATSClient:
 
     async def _reconnected_cb(self):
         logger.info("Reconnected to NATS!")
+
 
 nats_client = NATSClient()

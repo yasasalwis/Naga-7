@@ -1,11 +1,12 @@
-
 from abc import ABC, abstractmethod
+
 
 class BaseService(ABC):
     """
     Base class for all N7-Core services.
     Enforces the Service protocol expected by ServiceManager.
     """
+
     def __init__(self, name: str):
         self._name = name
 

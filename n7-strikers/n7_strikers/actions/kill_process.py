@@ -1,8 +1,9 @@
 import logging
+
 import psutil
-import json
 
 logger = logging.getLogger("n7-striker.actions.kill_process")
+
 
 class KillProcessAction:
     def __init__(self):
@@ -15,11 +16,11 @@ class KillProcessAction:
         """
         pid = params.get("pid")
         process_name = params.get("process_name")
-        
+
         logger.info(f"Executing kill_process: pid={pid}, name={process_name}")
-        
+
         killed_count = 0
-        
+
         if pid:
             try:
                 p = psutil.Process(pid)
@@ -42,8 +43,8 @@ class KillProcessAction:
                         logger.info(f"Killed process {p.info['pid']} ({process_name})")
                     except Exception as e:
                         logger.error(f"Failed to kill {p.info['pid']}: {e}")
-            
+
             if killed_count == 0:
-                 return {"status": "failed", "reason": "No matching process found"}
+                return {"status": "failed", "reason": "No matching process found"}
 
         return {"status": "succeeded", "killed_count": killed_count}

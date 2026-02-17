@@ -1,8 +1,9 @@
-
-from typing import Dict, Any, List, Optional
-from uuid import UUID, uuid4
 from datetime import datetime
+from typing import Dict, Any, List
+from uuid import UUID, uuid4
+
 from pydantic import BaseModel, Field
+
 
 class Event(BaseModel):
     """
@@ -12,11 +13,12 @@ class Event(BaseModel):
     event_id: UUID = Field(default_factory=uuid4)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     sentinel_id: UUID
-    event_class: str # network, endpoint, cloud, application
-    severity: str # informational, low, medium, high, critical
+    event_class: str  # network, endpoint, cloud, application
+    severity: str  # informational, low, medium, high, critical
     raw_data: Dict[str, Any]
     enrichments: Dict[str, Any] = Field(default_factory=dict)
     mitre_techniques: List[str] = Field(default_factory=list)
+
 
 class Alert(BaseModel):
     """

@@ -1,8 +1,9 @@
-
 import logging
+
 from ..service_manager.base_service import BaseService
 
 logger = logging.getLogger("n7-core.playbook-engine")
+
 
 class PlaybookEngineService(BaseService):
     """
@@ -10,6 +11,7 @@ class PlaybookEngineService(BaseService):
     Responsibility: Manage and execute playbooks.
     Ref: TDD Section 6.3 Playbook Engine
     """
+
     def __init__(self):
         super().__init__("PlaybookEngineService")
         self._running = False

@@ -1,7 +1,7 @@
-
 import logging
 
 logger = logging.getLogger("n7-striker.rollback-manager")
+
 
 class RollbackManagerService:
     """
@@ -9,6 +9,7 @@ class RollbackManagerService:
     Responsibility: Manage state snapshots and execute rollback actions.
     Ref: TDD Section 6.1 Striker Process Model
     """
+
     def __init__(self):
         self._running = False
 
