@@ -17,6 +17,7 @@ from n7_core.enrichment.service import EnrichmentService
 from n7_core.threat_intel.service import ThreatIntelService
 from n7_core.playbooks.service import PlaybookEngineService
 from n7_core.notifier.service import NotifierService
+from n7_core.utils import print_banner
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -27,6 +28,7 @@ async def main():
     Main entry point for N7-Core.
     Initializes and starts all core services.
     """
+    print_banner("N7-Core")
     logger.info("Starting N7-Core...")
     
     # Initialize Service Manager

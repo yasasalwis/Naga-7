@@ -13,7 +13,7 @@ class Action(Base, UUIDMixin, TimestampMixin):
     """
     __tablename__ = "actions"
 
-    action_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, name="id")
+    action_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     incident_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     striker_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)  # FK to agents table
     action_type: Mapped[str] = mapped_column(String, nullable=False)  # block_ip, kill_process, isolate_host, etc.
