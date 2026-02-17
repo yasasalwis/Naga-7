@@ -1,4 +1,5 @@
 asyncio
+aiohttp
 nats-py
 protobuf
 psutil

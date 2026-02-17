@@ -12,7 +12,13 @@ from alembic import context
 from n7_core.config import settings
 from n7_core.database.base import Base
 # Import all models here to ensure they are registered
-# from n7_core.models import ... 
+from n7_core.models.agent import Agent
+from n7_core.models.event import Event
+from n7_core.models.alert import Alert
+from n7_core.models.user import User
+from n7_core.models.incident import Incident
+from n7_core.models.action import Action
+from n7_core.models.audit_log import AuditLog 
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "changeme_in_production"
 
     # Database
-    DATABASE_URL: PostgresDsn = "postgresql+asyncpg://n7:n7password@localhost:5432/n7_core"
+    DATABASE_URL: PostgresDsn = "postgresql+asyncpg://n7user:n7password@localhost:5432/n7"
 
     # Message Bus (NATS)
     NATS_URL: str = "nats://localhost:4222"

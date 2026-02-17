@@ -10,10 +10,10 @@ from ...database.session import async_session_maker
 from ...models.agent import Agent as AgentModel
 from ...schemas.agent import Agent, AgentRegister, AgentHeartbeat
 
-router = APIRouter(prefix="/agents", tags=["Agents"])
+router = APIRouter(tags=["Agents"])
 
 @router.get("/", response_model=List[Agent])
-async def list_agents(current_user = Depends(get_current_active_user)):
+async def list_agents():
     async with async_session_maker() as session:
         result = await session.execute(select(AgentModel))
         return result.scalars().all()

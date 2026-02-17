@@ -1,0 +1,27 @@
+
+from typing import Literal
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    """
+    Configuration for Sentinel Agent Runtime.
+    Reads from environment variables and .env file.
+    """
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
+
+    # Agent Identity
+    AGENT_TYPE: Literal["sentinel", "striker"] = "sentinel"
+    AGENT_SUBTYPE: str = "system"  # Default subtype
+    ZONE: str = "default"
+
+    # Core API
+    CORE_API_URL: str = "http://localhost:8000/api"
+
+    # NATS Configuration
+    NATS_URL: str = "nats://localhost:4222"
+    NATS_CLUSTER_ID: str = "n7-cluster"
+
+    # Logging
+    LOG_LEVEL: str = "INFO"
+
+settings = Settings()

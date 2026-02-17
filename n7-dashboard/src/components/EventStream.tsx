@@ -16,7 +16,7 @@ export function EventStream() {
     useEffect(() => {
         const fetchEvents = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/events');
+                const response = await axios.get('http://localhost:8000/api/events/');
                 setEvents(response.data);
             } catch (error) {
                 console.error('Failed to fetch events', error);

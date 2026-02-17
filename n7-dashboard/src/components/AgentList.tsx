@@ -16,7 +16,7 @@ export function AgentList() {
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/agents');
+        const response = await axios.get('http://localhost:8000/api/agents/');
         setAgents(response.data);
       } catch (error) {
         console.error('Failed to fetch agents', error);
@@ -48,9 +48,8 @@ export function AgentList() {
                 <p className="text-xs text-gray-400 mt-1">Last Heartbeat: {new Date(agent.last_heartbeat).toLocaleTimeString()}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  agent.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
+                <span className={`px-2 py-1 text-xs rounded-full ${agent.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
                   {agent.status}
                 </span>
               </div>

@@ -2,8 +2,6 @@
 import logging
 import asyncio
 from typing import Dict, Any, List
-from .service import BaseService # Assuming I'll create a base service or reuse Core's Pattern? 
-# Wait, Sentinel services are simpler. Let's just make a class.
 
 logger = logging.getLogger("n7-sentinel.detection-engine")
 

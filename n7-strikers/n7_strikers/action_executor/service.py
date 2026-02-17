@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import json
-from ..service_manager.base_service import BaseService
 from ..messaging.nats_client import nats_client
 from ..config import settings
 from ..actions.kill_process import KillProcessAction
@@ -13,13 +12,12 @@ except ImportError:
 
 logger = logging.getLogger("n7-striker.action-executor")
 
-class ActionExecutorService(BaseService):
+class ActionExecutorService:
     """
     Action Executor Service.
     Responsibility: Receive actions from Core and execute them.
     """
     def __init__(self):
-        super().__init__("ActionExecutorService")
         self._running = False
         self.actions = {
             "kill_process": KillProcessAction()

@@ -10,8 +10,9 @@
 # - N7-Strikers agent
 # - N7-Dashboard
 #
-# Usage: ./start.sh [--skip-deps]
+# Usage: ./start.sh [--skip-deps] [--verbose]
 #   --skip-deps: Skip dependency installation (faster restarts)
+#   --verbose:   Show real-time logs from all services in terminal
 ################################################################################
 
 set -e  # Exit on error
@@ -65,10 +66,15 @@ log_step() {
 
 # Parse command line arguments
 SKIP_DEPS=false
+VERBOSE=false
 for arg in "$@"; do
     case $arg in
         --skip-deps)
             SKIP_DEPS=true
+            shift
+            ;;
+        --verbose)
+            VERBOSE=true
             shift
             ;;
     esac
@@ -91,8 +97,18 @@ cleanup() {
     if [ -f "$PID_FILE" ]; then
         while read -r pid; do
             if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-                log_info "Stopping process $pid"
-                kill "$pid" 2>/dev/null || true
+                log_info "Stopping process $pid and its children..."
+                # Try graceful termination first (kills process group)
+                kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+                
+                # Wait a moment for graceful shutdown
+                sleep 1
+                
+                # Force kill if still running
+                if kill -0 "$pid" 2>/dev/null; then
+                    log_info "Force killing process $pid..."
+                    kill -KILL -"$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+                fi
             fi
         done < "$PID_FILE"
         rm "$PID_FILE"
@@ -143,6 +159,41 @@ if ! command -v docker &> /dev/null; then
 fi
 log_success "Docker found"
 
+# Check if Docker daemon is running (macOS specific)
+if ! docker info &> /dev/null; then
+    log_warning "Docker daemon is not running"
+    
+    # Check if running on macOS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        log_info "Attempting to start Docker Desktop..."
+        
+        # Start Docker Desktop
+        open -a Docker
+        
+        # Wait for Docker to start (max 60 seconds)
+        log_info "Waiting for Docker daemon to start..."
+        for i in {1..60}; do
+            if docker info &> /dev/null; then
+                log_success "Docker daemon is now running"
+                break
+            fi
+            
+            if [ $i -eq 60 ]; then
+                log_error "Docker daemon failed to start after 60 seconds"
+                log_error "Please start Docker Desktop manually and try again"
+                exit 1
+            fi
+            
+            sleep 1
+        done
+    else
+        log_error "Docker daemon is not running. Please start Docker and try again."
+        exit 1
+    fi
+else
+    log_success "Docker daemon is running"
+fi
+
 # Check for Docker Compose
 if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
     log_error "Docker Compose is not installed. Please install Docker Compose."
@@ -179,7 +230,7 @@ cd "$SCRIPT_DIR"
 # Step 3: Install Python Dependencies
 # ============================================================================
 if [ "$SKIP_DEPS" = false ]; then
-    log_step "Step 3/7: Installing Python dependencies..."
+    log_step "Step 3/8: Installing Python dependencies..."
     
     log_info "Installing n7-core dependencies..."
     cd "$SCRIPT_DIR/n7-core"
@@ -212,7 +263,7 @@ fi
 # Step 4: Install Dashboard Dependencies
 # ============================================================================
 if [ "$SKIP_DEPS" = false ]; then
-    log_step "Step 4/7: Installing dashboard dependencies..."
+    log_step "Step 4/8: Installing dashboard dependencies..."
     
     cd "$SCRIPT_DIR/n7-dashboard"
     npm install > "$LOG_DIR/npm-install.log" 2>&1 || {
@@ -227,50 +278,99 @@ else
 fi
 
 # ============================================================================
-# Step 5: Start N7-Core
+# Step 5: Run Database Migrations
 # ============================================================================
-log_step "Step 5/7: Starting N7-Core services..."
+log_step "Step 5/8: Running database migrations..."
 
 cd "$SCRIPT_DIR/n7-core"
-python3 main.py > "$LOG_DIR/n7-core.log" 2>&1 &
+
+# Check if alembic is installed
+if ! command -v alembic &> /dev/null; then
+    log_warning "Alembic not found in PATH, trying with python -m alembic..."
+    ALEMBIC_CMD="python3 -m alembic"
+else
+    ALEMBIC_CMD="alembic"
+fi
+
+# Run migrations
+log_info "Applying database migrations..."
+$ALEMBIC_CMD upgrade head > "$LOG_DIR/alembic-migrate.log" 2>&1 || {
+    log_error "Database migration failed. Check logs/alembic-migrate.log"
+    exit 1
+}
+
+log_success "Database migrations completed"
+cd "$SCRIPT_DIR"
+
+# ============================================================================
+# Step 6: Start N7-Core
+# ============================================================================
+log_step "Step 6/8: Starting N7-Core services..."
+
+cd "$SCRIPT_DIR/n7-core"
+if [ "$VERBOSE" = true ]; then
+    python3 main.py 2>&1 | sed "s/^/[CORE] /" | tee "$LOG_DIR/n7-core.log" &
+else
+    python3 main.py > "$LOG_DIR/n7-core.log" 2>&1 &
+fi
 CORE_PID=$!
 echo "$CORE_PID" >> "$PID_FILE"
 log_success "N7-Core started (PID: $CORE_PID)"
-log_info "  Logs: logs/n7-core.log"
+if [ "$VERBOSE" = false ]; then
+    log_info "  Logs: logs/n7-core.log"
+fi
 
 # Give core services time to initialize
 sleep 3
 
 # ============================================================================
-# Step 6: Start N7-Sentinels and N7-Strikers
+# Step 7: Start N7-Sentinels and N7-Strikers
 # ============================================================================
-log_step "Step 6/7: Starting N7-Sentinels and N7-Strikers..."
+log_step "Step 7/8: Starting N7-Sentinels and N7-Strikers..."
 
 cd "$SCRIPT_DIR/n7-sentinels"
-python3 main.py > "$LOG_DIR/n7-sentinels.log" 2>&1 &
+if [ "$VERBOSE" = true ]; then
+    python3 main.py 2>&1 | sed "s/^/[SENTINELS] /" | tee "$LOG_DIR/n7-sentinels.log" &
+else
+    python3 main.py > "$LOG_DIR/n7-sentinels.log" 2>&1 &
+fi
 SENTINEL_PID=$!
 echo "$SENTINEL_PID" >> "$PID_FILE"
 log_success "N7-Sentinels started (PID: $SENTINEL_PID)"
-log_info "  Logs: logs/n7-sentinels.log"
+if [ "$VERBOSE" = false ]; then
+    log_info "  Logs: logs/n7-sentinels.log"
+fi
 
 cd "$SCRIPT_DIR/n7-strikers"
-python3 main.py > "$LOG_DIR/n7-strikers.log" 2>&1 &
+if [ "$VERBOSE" = true ]; then
+    python3 main.py 2>&1 | sed "s/^/[STRIKERS] /" | tee "$LOG_DIR/n7-strikers.log" &
+else
+    python3 main.py > "$LOG_DIR/n7-strikers.log" 2>&1 &
+fi
 STRIKER_PID=$!
 echo "$STRIKER_PID" >> "$PID_FILE"
 log_success "N7-Strikers started (PID: $STRIKER_PID)"
-log_info "  Logs: logs/n7-strikers.log"
+if [ "$VERBOSE" = false ]; then
+    log_info "  Logs: logs/n7-strikers.log"
+fi
 
 # ============================================================================
-# Step 7: Start N7-Dashboard
+# Step 8: Start N7-Dashboard
 # ============================================================================
-log_step "Step 7/7: Starting N7-Dashboard..."
+log_step "Step 8/8: Starting N7-Dashboard..."
 
 cd "$SCRIPT_DIR/n7-dashboard"
-npm run dev > "$LOG_DIR/n7-dashboard.log" 2>&1 &
+if [ "$VERBOSE" = true ]; then
+    npm run dev 2>&1 | sed "s/^/[DASHBOARD] /" | tee "$LOG_DIR/n7-dashboard.log" &
+else
+    npm run dev > "$LOG_DIR/n7-dashboard.log" 2>&1 &
+fi
 DASHBOARD_PID=$!
 echo "$DASHBOARD_PID" >> "$PID_FILE"
 log_success "N7-Dashboard started (PID: $DASHBOARD_PID)"
-log_info "  Logs: logs/n7-dashboard.log"
+if [ "$VERBOSE" = false ]; then
+    log_info "  Logs: logs/n7-dashboard.log"
+fi
 
 cd "$SCRIPT_DIR"
 
@@ -297,10 +397,16 @@ echo -e "  ${GREEN}✓${NC} N7-Sentinels (PID: $SENTINEL_PID)"
 echo -e "  ${GREEN}✓${NC} N7-Strikers (PID: $STRIKER_PID)"
 echo -e "  ${GREEN}✓${NC} N7-Dashboard (PID: $DASHBOARD_PID)"
 echo ""
-echo -e "${CYAN}Logs:${NC}"
-echo -e "  View all logs in: ${YELLOW}logs/${NC}"
-echo -e "  Monitor activity: ${YELLOW}tail -f logs/*.log${NC}"
-echo ""
+if [ "$VERBOSE" = false ]; then
+    echo -e "${CYAN}Logs:${NC}"
+    echo -e "  View all logs in: ${YELLOW}logs/${NC}"
+    echo -e "  Monitor activity: ${YELLOW}tail -f logs/*.log${NC}"
+    echo ""
+else
+    echo -e "${CYAN}Verbose Mode:${NC} Real-time logs displayed below"
+    echo -e "  Logs are also saved to: ${YELLOW}logs/${NC}"
+    echo ""
+fi
 echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
 echo ""
 

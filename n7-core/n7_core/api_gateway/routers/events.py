@@ -7,13 +7,12 @@ from ...database.session import async_session_maker
 from sqlalchemy import select
 from ..auth import get_current_active_user
 
-router = APIRouter(prefix="/events", tags=["Events"])
+router = APIRouter(tags=["Events"])
 
 @router.get("/", response_model=List[Event])
 async def list_events(
     skip: int = 0, 
-    limit: int = 100, 
-    current_user = Depends(get_current_active_user)
+    limit: int = 100
 ):
     async with async_session_maker() as session:
         result = await session.execute(
