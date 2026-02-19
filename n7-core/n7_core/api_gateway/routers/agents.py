@@ -26,11 +26,35 @@ async def register_agent(agent_in: AgentRegister):
     Agent sends its self-generated API key which is hashed and stored.
     """
     async with async_session_maker() as session:
-        # Hash the API key before storing (never store plain-text)
-        api_key_hash = pwd_context.hash(agent_in.api_key)
-
         # Extract prefix (first 16 chars) for O(1) indexed lookup
         api_key_prefix = agent_in.api_key[:16] if len(agent_in.api_key) >= 16 else agent_in.api_key
+
+        # Check for existing agent with this prefix
+        result = await session.execute(
+            select(AgentModel).where(AgentModel.api_key_prefix == api_key_prefix)
+        )
+        existing_agent = result.scalar_one_or_none()
+
+        if existing_agent:
+            # Verify if it's the same key
+            if pwd_context.verify(agent_in.api_key, existing_agent.api_key_hash):
+                # Valid re-registration, update status and return
+                existing_agent.last_heartbeat = datetime.utcnow()
+                existing_agent.status = "active"
+                # Update other fields if needed
+                existing_agent.capabilities = agent_in.capabilities
+                existing_agent.metadata_ = agent_in.metadata
+                
+                await session.commit()
+                await session.refresh(existing_agent)
+                return existing_agent
+            else:
+                # Key collision or invalid key for existing prefix
+                # Since prefix is 16 chars, collision is unlikely. Assume invalid key.
+                raise HTTPException(status_code=400, detail="API Key collision or invalid key for existing agent.")
+
+        # Hash the API key before storing (never store plain-text)
+        api_key_hash = pwd_context.hash(agent_in.api_key)
 
         db_agent = AgentModel(
             agent_type=agent_in.agent_type,

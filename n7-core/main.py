@@ -17,6 +17,7 @@ from n7_core.enrichment.service import EnrichmentService
 from n7_core.threat_intel.service import ThreatIntelService
 from n7_core.playbooks.service import PlaybookEngineService
 from n7_core.notifier.service import NotifierService
+from n7_core.deployment.service import DeploymentService
 from n7_core.utils import print_banner
 
 # Configure logging
@@ -52,6 +53,7 @@ async def main():
     service_manager.register(EnrichmentService())
     service_manager.register(ThreatIntelService())
     service_manager.register(PlaybookEngineService())
+    service_manager.register(DeploymentService())
     service_manager.register(NotifierService())
     
     # Start all services

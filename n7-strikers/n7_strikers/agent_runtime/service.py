@@ -32,6 +32,10 @@ class AgentRuntimeService:
         self._running = True
         logger.info("AgentRuntimeService started.")
         self._session = aiohttp.ClientSession()
+
+        # Authenticate with Core
+        await self._authenticate()
+
         # Build Graph
         self._graph = build_striker_graph()
 

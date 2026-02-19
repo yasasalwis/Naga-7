@@ -12,6 +12,12 @@ protobuf
 psutil
 redis
 httpx
-passlib
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0,<4.2.0
 python-jose[cryptography]
 python-multipart
+bcrypt
+asyncssh>=2.14.0
+pywinrm>=0.4.3
+python-nmap>=0.7.1
+icmplib>=3.0.4

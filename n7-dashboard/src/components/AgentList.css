@@ -1,0 +1,93 @@
+.agent-list-container {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    box-shadow: var(--shadow-md);
+    height: 100%;
+}
+
+.agent-list-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+    color: var(--text-primary);
+    font-size: 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: var(--space-sm);
+}
+
+.agent-list-title-icon {
+    color: var(--accent-primary);
+}
+
+.agent-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.agent-card {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--space-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.agent-card:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.agent-info h3 {
+    font-size: 1rem;
+    margin-bottom: var(--space-xs);
+    color: var(--text-primary);
+}
+
+.agent-meta {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+.agent-heartbeat {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: var(--space-xs);
+}
+
+.agent-status {
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.agent-status.active {
+    background-color: rgba(63, 185, 80, 0.15);
+    color: var(--accent-success);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+    box-shadow: 0 0 8px rgba(63, 185, 80, 0.2);
+}
+
+.agent-status.inactive {
+    background-color: rgba(248, 81, 73, 0.15);
+    color: var(--accent-error);
+    border: 1px solid rgba(248, 81, 73, 0.3);
+}
+
+.no-agents {
+    color: var(--text-muted);
+    text-align: center;
+    padding: var(--space-xl);
+    font-style: italic;
+}

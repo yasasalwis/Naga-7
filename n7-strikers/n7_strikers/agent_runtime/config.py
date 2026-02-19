@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # NATS Configuration
     NATS_URL: str = "nats://localhost:4222"
     NATS_CLUSTER_ID: str = "n7-cluster"
+    
+    # Authentication - Unique API key per agent instance
+    API_KEY_FILE: str = ".agent_api_key"  # Local file to persist API key
 
     # Logging
     LOG_LEVEL: str = "INFO"

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Shield, ShieldAlert, Cpu } from 'lucide-react';
+import { Shield } from 'lucide-react';
+import './AgentList.css';
 
 interface Agent {
   id: string;
@@ -29,27 +30,28 @@ export function AgentList() {
   }, []);
 
   return (
-    <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <Shield className="w-6 h-6 text-blue-600" />
+    <div className="agent-list-container">
+      <h2 className="agent-list-header">
+        <Shield className="agent-list-title-icon" size={24} />
         Active Agents
       </h2>
-      <div className="space-y-4">
+      <div className="agent-items">
         {agents.length === 0 ? (
-          <p className="text-gray-500">No agents connected.</p>
+          <p className="no-agents">No agents connected.</p>
         ) : (
           agents.map((agent) => (
-            <div key={agent.id} className="border p-4 rounded-md flex justify-between items-center bg-gray-50">
-              <div>
-                <p className="font-semibold text-lg">{agent.id}</p>
-                <p className="text-sm text-gray-600 capitalize">
+            <div key={agent.id} className="agent-card">
+              <div className="agent-info">
+                <h3>{agent.id}</h3>
+                <p className="agent-meta">
                   {agent.agent_type} • {agent.agent_subtype}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Last Heartbeat: {new Date(agent.last_heartbeat).toLocaleTimeString()}</p>
+                <p className="agent-heartbeat">
+                  Last Heartbeat: {new Date(agent.last_heartbeat).toLocaleTimeString()}
+                </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 text-xs rounded-full ${agent.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
+              <div className="agent-status-container">
+                <span className={`agent-status ${agent.status === 'active' ? 'active' : 'inactive'}`}>
                   {agent.status}
                 </span>
               </div>

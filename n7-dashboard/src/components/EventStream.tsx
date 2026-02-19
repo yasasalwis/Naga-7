@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Activity } from 'lucide-react';
+import './EventStream.css';
 
 interface Event {
     event_id: string;
@@ -28,24 +29,32 @@ export function EventStream() {
         return () => clearInterval(interval);
     }, []);
 
+    const getSeverityClass = (severity: string) => {
+        switch (severity.toLowerCase()) {
+            case 'high': return 'high';
+            case 'medium': return 'medium';
+            case 'low': return 'low';
+            default: return 'medium';
+        }
+    };
+
     return (
-        <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Activity className="w-6 h-6 text-purple-600" />
+        <div className="event-stream-container">
+            <h2 className="event-stream-header">
+                <Activity className="event-stream-title-icon" size={24} />
                 Event Stream
             </h2>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="event-list">
                 {events.map((evt) => (
-                    <div key={evt.event_id} className="border-l-4 border-purple-500 pl-4 py-2 bg-gray-50 rounded text-sm">
-                        <div className="flex justify-between">
-                            <span className="font-mono text-xs text-gray-400">{evt.timestamp}</span>
-                            <span className={`px-1 rounded text-xs ${evt.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-200 text-gray-800'
-                                }`}>
+                    <div key={evt.event_id} className="event-item">
+                        <div className="event-meta">
+                            <span className="event-timestamp">{evt.timestamp}</span>
+                            <span className={`event-severity ${getSeverityClass(evt.severity)}`}>
                                 {evt.severity}
                             </span>
                         </div>
-                        <p className="font-semibold">{evt.event_class}</p>
-                        <pre className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">
+                        <p className="event-class">{evt.event_class}</p>
+                        <pre className="event-data">
                             {JSON.stringify(evt.raw_data, null, 2)}
                         </pre>
                     </div>

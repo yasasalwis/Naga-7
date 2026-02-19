@@ -64,6 +64,27 @@ log_step() {
     echo -e "${MAGENTA}[STEP]${NC} $1"
 }
 
+# Python/Pip helpers
+get_python_cmd() {
+    if [ -f ".venv/bin/python" ]; then
+        echo ".venv/bin/python"
+    elif [ -f "venv/bin/python" ]; then
+        echo "venv/bin/python"
+    else
+        echo "python3"
+    fi
+}
+
+get_pip_cmd() {
+    if [ -f ".venv/bin/pip" ]; then
+        echo ".venv/bin/pip"
+    elif [ -f "venv/bin/pip" ]; then
+        echo "venv/bin/pip"
+    else
+        echo "python3 -m pip"
+    fi
+}
+
 # Parse command line arguments
 SKIP_DEPS=false
 VERBOSE=false
@@ -234,21 +255,24 @@ if [ "$SKIP_DEPS" = false ]; then
     
     log_info "Installing n7-core dependencies..."
     cd "$SCRIPT_DIR/n7-core"
-    pip install -r requirements.txt > "$LOG_DIR/pip-core.log" 2>&1 || {
+    PIP_CMD=$(get_pip_cmd)
+    $PIP_CMD install -r requirements.txt > "$LOG_DIR/pip-core.log" 2>&1 || {
         log_error "Failed to install n7-core dependencies. Check logs/pip-core.log"
         exit 1
     }
     
     log_info "Installing n7-sentinels dependencies..."
     cd "$SCRIPT_DIR/n7-sentinels"
-    pip install -r requirements.txt > "$LOG_DIR/pip-sentinels.log" 2>&1 || {
+    PIP_CMD=$(get_pip_cmd)
+    $PIP_CMD install -r requirements.txt > "$LOG_DIR/pip-sentinels.log" 2>&1 || {
         log_error "Failed to install n7-sentinels dependencies. Check logs/pip-sentinels.log"
         exit 1
     }
     
     log_info "Installing n7-strikers dependencies..."
     cd "$SCRIPT_DIR/n7-strikers"
-    pip install -r requirements.txt > "$LOG_DIR/pip-strikers.log" 2>&1 || {
+    PIP_CMD=$(get_pip_cmd)
+    $PIP_CMD install -r requirements.txt > "$LOG_DIR/pip-strikers.log" 2>&1 || {
         log_error "Failed to install n7-strikers dependencies. Check logs/pip-strikers.log"
         exit 1
     }
@@ -286,8 +310,14 @@ cd "$SCRIPT_DIR/n7-core"
 
 # Check if alembic is installed
 if ! command -v alembic &> /dev/null; then
-    log_warning "Alembic not found in PATH, trying with python -m alembic..."
-    ALEMBIC_CMD="python3 -m alembic"
+    # Try local environment executable first
+    if [ -f ".venv/bin/alembic" ]; then
+        ALEMBIC_CMD=".venv/bin/alembic"
+    else
+        log_warning "Alembic not found in PATH, trying with python -m alembic..."
+        PYTHON_CMD=$(get_python_cmd)
+        ALEMBIC_CMD="$PYTHON_CMD -m alembic"
+    fi
 else
     ALEMBIC_CMD="alembic"
 fi
@@ -308,10 +338,11 @@ cd "$SCRIPT_DIR"
 log_step "Step 6/8: Starting N7-Core services..."
 
 cd "$SCRIPT_DIR/n7-core"
+PYTHON_CMD=$(get_python_cmd)
 if [ "$VERBOSE" = true ]; then
-    python3 main.py 2>&1 | sed "s/^/[CORE] /" | tee "$LOG_DIR/n7-core.log" &
+    $PYTHON_CMD main.py 2>&1 | sed "s/^/[CORE] /" | tee "$LOG_DIR/n7-core.log" &
 else
-    python3 main.py > "$LOG_DIR/n7-core.log" 2>&1 &
+    $PYTHON_CMD main.py > "$LOG_DIR/n7-core.log" 2>&1 &
 fi
 CORE_PID=$!
 echo "$CORE_PID" >> "$PID_FILE"
@@ -329,10 +360,11 @@ sleep 3
 log_step "Step 7/8: Starting N7-Sentinels and N7-Strikers..."
 
 cd "$SCRIPT_DIR/n7-sentinels"
+PYTHON_CMD=$(get_python_cmd)
 if [ "$VERBOSE" = true ]; then
-    python3 main.py 2>&1 | sed "s/^/[SENTINELS] /" | tee "$LOG_DIR/n7-sentinels.log" &
+    $PYTHON_CMD main.py 2>&1 | sed "s/^/[SENTINELS] /" | tee "$LOG_DIR/n7-sentinels.log" &
 else
-    python3 main.py > "$LOG_DIR/n7-sentinels.log" 2>&1 &
+    $PYTHON_CMD main.py > "$LOG_DIR/n7-sentinels.log" 2>&1 &
 fi
 SENTINEL_PID=$!
 echo "$SENTINEL_PID" >> "$PID_FILE"
@@ -342,10 +374,11 @@ if [ "$VERBOSE" = false ]; then
 fi
 
 cd "$SCRIPT_DIR/n7-strikers"
+PYTHON_CMD=$(get_python_cmd)
 if [ "$VERBOSE" = true ]; then
-    python3 main.py 2>&1 | sed "s/^/[STRIKERS] /" | tee "$LOG_DIR/n7-strikers.log" &
+    $PYTHON_CMD main.py 2>&1 | sed "s/^/[STRIKERS] /" | tee "$LOG_DIR/n7-strikers.log" &
 else
-    python3 main.py > "$LOG_DIR/n7-strikers.log" 2>&1 &
+    $PYTHON_CMD main.py > "$LOG_DIR/n7-strikers.log" 2>&1 &
 fi
 STRIKER_PID=$!
 echo "$STRIKER_PID" >> "$PID_FILE"

@@ -73,6 +73,18 @@ else
     pkill -f "n7-sentinels/main.py" 2>/dev/null && log_success "Stopped N7-Sentinels" || true
     pkill -f "n7-strikers/main.py" 2>/dev/null && log_success "Stopped N7-Strikers" || true
     pkill -f "vite" 2>/dev/null && log_success "Stopped N7-Dashboard" || true
+
+    # Force kill processes on ports if still running
+    if lsof -ti:8000 >/dev/null; then
+        log_warning "Force killing process on port 8000..."
+        kill -9 $(lsof -ti:8000) 2>/dev/null || true
+        log_success "Killed process on port 8000"
+    fi
+    if lsof -ti:5173 >/dev/null; then
+        log_warning "Force killing process on port 5173..."
+        kill -9 $(lsof -ti:5173) 2>/dev/null || true
+        log_success "Killed process on port 5173"
+    fi
 fi
 
 # Stop infrastructure services

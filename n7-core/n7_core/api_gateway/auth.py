@@ -61,7 +61,8 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 
 
 # Agent API Key Authentication
-from fastapi.security import APIKeyHeader, Security
+from fastapi import Security
+from fastapi.security import APIKeyHeader
 from ..models.agent import Agent
 
 agent_api_key_header = APIKeyHeader(name="X-Agent-API-Key", auto_error=True)

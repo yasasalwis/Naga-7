@@ -18,7 +18,8 @@ from n7_core.models.alert import Alert
 from n7_core.models.user import User
 from n7_core.models.incident import Incident
 from n7_core.models.action import Action
-from n7_core.models.audit_log import AuditLog 
+from n7_core.models.audit_log import AuditLog
+from n7_core.models.infra_node import InfraNode
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

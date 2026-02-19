@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, Any, List
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class AgentBase(BaseModel):
@@ -32,3 +32,24 @@ class Agent(AgentBase):
 
     class Config:
         from_attributes = True
+
+    @model_validator(mode='before')
+    @classmethod
+    def map_metadata_field(cls, data: Any):
+        """Map metadata_ to metadata when loading from SQLAlchemy models."""
+        if hasattr(data, 'metadata_'):
+            # Convert SQLAlchemy model to dict with proper field mapping
+            result = {
+                "id": data.id,
+                "agent_type": data.agent_type,
+                "agent_subtype": data.agent_subtype,
+                "zone": data.zone,
+                "capabilities": data.capabilities,
+                "metadata": data.metadata_,
+                "status": data.status,
+                "last_heartbeat": data.last_heartbeat,
+                "config_version": data.config_version,
+                "resource_usage": data.resource_usage,
+            }
+            return result
+        return data
