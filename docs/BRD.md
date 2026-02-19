@@ -116,25 +116,27 @@ under a single open-source framework with AI-driven decision-making.
 
 ### 6.1 Detection Requirements
 
-| ID     | Requirement                                                                                         | Priority |
-|--------|-----------------------------------------------------------------------------------------------------|----------|
-| BR-D01 | The system shall continuously monitor network traffic for known and anomalous threat patterns       | Critical |
-| BR-D02 | The system shall monitor endpoint telemetry (process execution, file integrity, registry changes)   | Critical |
-| BR-D03 | The system shall ingest and correlate logs from external sources (SIEM, firewalls, cloud services)  | High     |
-| BR-D04 | The system shall support custom detection rules authored by security engineers                      | High     |
-| BR-D05 | The system shall classify detected threats by severity (Critical, High, Medium, Low, Informational) | Critical |
-| BR-D06 | The system shall correlate related events across multiple Sentinels to identify multi-stage attacks | High     |
+| ID     | Requirement                                                                                                                                                 | Priority |
+|--------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| BR-D01 | The system shall continuously monitor network traffic for known and anomalous threat patterns                                                               | Critical |
+| BR-D02 | The system shall monitor endpoint telemetry (process execution, file integrity, registry changes)                                                           | Critical |
+| BR-D03 | The system shall ingest and correlate logs from external sources (SIEM, firewalls, cloud services)                                                          | High     |
+| BR-D04 | The system shall support custom detection rules authored by security engineers                                                                              | High     |
+| BR-D05 | The system shall classify detected threats by severity (Critical, High, Medium, Low, Informational)                                                         | Critical |
+| BR-D06 | The system shall correlate related events across multiple Sentinels to identify multi-stage attacks                                                         | High     |
+| BR-D07 | The system shall provide AI-generated plain-English attack narratives for each alert, mapped to MITRE ATT&CK tactics and techniques, using a local on-premise LLM (Ollama/llama3) to ensure data privacy | High |
 
 ### 6.2 Response Requirements
 
-| ID     | Requirement                                                                                     | Priority |
-|--------|-------------------------------------------------------------------------------------------------|----------|
-| BR-R01 | The system shall automatically contain Low and Medium severity threats per configured policy    | Critical |
-| BR-R02 | The system shall escalate High and Critical threats to human operators with recommended actions | Critical |
-| BR-R03 | The system shall support configurable response playbooks for Strikers                           | High     |
-| BR-R04 | The system shall provide rollback capability for automated response actions                     | High     |
-| BR-R05 | The system shall enforce rate limiting and blast-radius controls on automated responses         | Critical |
-| BR-R06 | The system shall support manual override of any automated response at any point                 | Critical |
+| ID     | Requirement                                                                                                       | Priority |
+|--------|-------------------------------------------------------------------------------------------------------------------|----------|
+| BR-R01 | The system shall automatically contain Low and Medium severity threats per configured policy                      | Critical |
+| BR-R02 | The system shall escalate High and Critical threats to human operators with recommended actions                   | Critical |
+| BR-R03 | The system shall support configurable response playbooks for Strikers                                             | High     |
+| BR-R04 | The system shall provide rollback capability for automated response actions                                       | High     |
+| BR-R05 | The system shall enforce rate limiting and blast-radius controls on automated responses                           | Critical |
+| BR-R06 | The system shall support manual override of any automated response at any point                                   | Critical |
+| BR-R07 | The system shall support automated network quarantine of compromised endpoints while preserving management channel connectivity (NATS port 4222) for forensic access and command-and-control | Critical |
 
 ### 6.3 Orchestration Requirements
 
@@ -145,6 +147,8 @@ under a single open-source framework with AI-driven decision-making.
 | BR-O03 | The Core shall enforce escalation policies and approval workflows for response actions                  | Critical |
 | BR-O04 | The Core shall provide an API for integration with external systems (ticketing, chat, SOAR)             | High     |
 | BR-O05 | The Core shall maintain a persistent audit log of all events, decisions, and actions                    | Critical |
+| BR-O06 | The Core shall ingest and continuously refresh Indicators of Compromise (IOCs) from open-source Threat Intelligence feeds (OTX AlienVault, Abuse.ch URLhaus, Feodo Tracker) and cross-reference live telemetry against the IOC cache | High |
+| BR-O07 | The Core shall deploy endpoint honeytoken decoy files via Sentinels and immediately promote any access to a critical alert with 100% confidence (zero-false-positive deception detection) | High |
 
 ### 6.4 Operational Requirements
 
@@ -231,6 +235,7 @@ under a single open-source framework with AI-driven decision-making.
 
 ## 11. Revision History
 
-| Version | Date       | Author  | Description   |
-|---------|------------|---------|---------------|
-| 1.0.0   | 2026-02-17 | N7 Team | Initial draft |
+| Version | Date       | Author  | Description                                                                                         |
+|---------|------------|---------|-----------------------------------------------------------------------------------------------------|
+| 1.0.0   | 2026-02-17 | N7 Team | Initial draft                                                                                       |
+| 1.1.0   | 2026-02-19 | N7 Team | Added BR-D07 (LLM narratives), BR-R07 (network quarantine), BR-O06 (TI feeds), BR-O07 (honeytokens) |

@@ -53,7 +53,16 @@ class DecisionEngineService(BaseService):
 
             if severity == "critical":
                 verdict = "escalate"
-                # Notify operators (omitted for MVP)
+                reasoning = json.loads(proto_alert.reasoning) if proto_alert.reasoning else {}
+                # Auto-isolate host for multi-stage critical attacks
+                if reasoning.get("is_multi_stage") and reasoning.get("source"):
+                    verdict = "auto_respond"
+                    action_to_take = {
+                        "action_type": "isolate_host",
+                        "reason": reasoning.get("rule", "multi_stage_critical_attack"),
+                        "alert_id": proto_alert.alert_id,
+                        "source": reasoning.get("source"),
+                    }
             elif severity == "high":
                 # Auto-respond if confidence is high (simulated)
                 if proto_alert.threat_score > 70:
@@ -86,14 +95,13 @@ class DecisionEngineService(BaseService):
                     "timestamp": datetime.utcnow().isoformat()
                 }
 
-                # Publish to general actions topic (or specific striker)
-                # Strikers filter by capability
+                # Publish to broadcast subject so any capable striker handles it
                 if nats_client.nc:
                     await nats_client.nc.publish(
-                        f"n7.actions.{action_to_take['action_type']}",
+                        "n7.actions.broadcast",
                         json.dumps(action_payload).encode()
                     )
-                    logger.info(f"Dispatched action {action_id}: {action_to_take['action_type']}")
+                    logger.info(f"Dispatched action {action_id}: {action_to_take['action_type']} via broadcast")
 
         except Exception as e:
             logger.error(f"Error processing alert: {e}", exc_info=True)

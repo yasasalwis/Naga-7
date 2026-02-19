@@ -95,5 +95,25 @@ CORRELATION_RULES = {
         "severity": "critical",
         "mitre_tactics": ["TA0040"],  # Impact
         "mitre_techniques": ["T1486"]  # Data Encrypted for Impact
+    },
+
+    # Rule 6: Honeytoken File Access — Active Deception / Endpoint Deception Engine
+    # Threshold=1: any single access to a decoy file is 100% confidence.
+    # Legitimate users will never see or interact with honeytoken files.
+    "honeytoken_access": {
+        "name": "Honeytoken File Access",
+        "description": (
+            "A deception honeytoken file was accessed. Legitimate users never interact "
+            "with these files, so any access indicates an active attacker or malicious "
+            "insider performing reconnaissance."
+        ),
+        "pattern": {
+            "event_class": "honeytoken_access"
+        },
+        "threshold": 1,
+        "time_window": 3600,  # seconds (effectively: first event always fires alert)
+        "severity": "critical",
+        "mitre_tactics": ["TA0009"],   # Collection
+        "mitre_techniques": ["T1083"]  # File and Directory Discovery
     }
 }

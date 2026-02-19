@@ -2,15 +2,28 @@ import json
 import logging
 
 from ..actions.kill_process import KillProcessAction
+from ..actions.network_isolator import NetworkIsolatorAction, NetworkUnisolatorAction
 from ..config import settings
 from ..messaging.nats_client import nats_client
 
 try:
     from schemas.actions_pb2 import Action as ProtoAction
 except ImportError:
-    pass
+    ProtoAction = None
 
 logger = logging.getLogger("n7-striker.action-executor")
+
+
+class _ActionDict:
+    """Duck-typed wrapper for JSON-sourced action payloads (no Protobuf)."""
+    def __init__(self, data: dict):
+        self.action_id = data.get("action_id", "")
+        self.incident_id = data.get("incident_id", "")
+        self.striker_id = data.get("striker_id", settings.AGENT_ID)
+        self.action_type = data.get("action_type", data.get("type", ""))
+        self.parameters = data.get("parameters", json.dumps(data.get("params", {})))
+        self.status = data.get("status", "queued")
+        self.result_data = data.get("result_data", "")
 
 
 class ActionExecutorService:
@@ -22,7 +35,9 @@ class ActionExecutorService:
     def __init__(self):
         self._running = False
         self.actions = {
-            "kill_process": KillProcessAction()
+            "kill_process": KillProcessAction(),
+            "isolate_host": NetworkIsolatorAction(),
+            "unisolate_host": NetworkUnisolatorAction(),
         }
 
     async def start(self):
@@ -30,6 +45,7 @@ class ActionExecutorService:
         logger.info("ActionExecutorService started.")
 
         if nats_client.nc.is_connected:
+            # Subscribe to agent-specific action subject
             subject = f"n7.actions.{settings.AGENT_ID}"
             await nats_client.nc.subscribe(
                 subject,
@@ -37,7 +53,13 @@ class ActionExecutorService:
             )
             logger.info(f"Subscribed to {subject}")
 
-            # Also subscribe to broadcast/zone actions if needed
+            # Subscribe to broadcast subject (for Core dispatching without a specific agent ID)
+            await nats_client.nc.subscribe(
+                "n7.actions.broadcast",
+                cb=self.handle_action,
+                queue="action_executor"
+            )
+            logger.info("Subscribed to n7.actions.broadcast")
         else:
             logger.warning("NATS not connected.")
 
@@ -47,8 +69,21 @@ class ActionExecutorService:
 
     async def handle_action(self, msg):
         try:
-            proto_action = ProtoAction()
-            proto_action.ParseFromString(msg.data)
+            # Try Protobuf first; fall back to JSON for actions dispatched as plain JSON
+            proto_action = None
+            if ProtoAction is not None:
+                try:
+                    _pa = ProtoAction()
+                    _pa.ParseFromString(msg.data)
+                    # Basic sanity check: Protobuf decode can silently succeed on JSON bytes
+                    if _pa.action_type:
+                        proto_action = _pa
+                except Exception:
+                    proto_action = None
+
+            if proto_action is None:
+                data = json.loads(msg.data.decode())
+                proto_action = _ActionDict(data)
 
             logger.info(f"Received action: {proto_action.action_id} type={proto_action.action_type}")
 
@@ -68,29 +103,38 @@ class ActionExecutorService:
             logger.info(f"Action execution result: {result}")
 
             # Report status back to Core
-            status_update = ProtoAction()
-            status_update.action_id = proto_action.action_id
-            status_update.incident_id = proto_action.incident_id
-            status_update.striker_id = settings.AGENT_ID
-            status_update.action_type = proto_action.action_type
-            status_update.status = "completed" if result.get("success", False) else "failed"
-            status_update.result_data = json.dumps(result)
-
             if nats_client.nc.is_connected:
-                await nats_client.nc.publish("n7.actions.status", status_update.SerializeToString())
+                if ProtoAction is not None and not isinstance(proto_action, _ActionDict):
+                    status_update = ProtoAction()
+                    status_update.action_id = proto_action.action_id
+                    status_update.incident_id = proto_action.incident_id
+                    status_update.striker_id = settings.AGENT_ID
+                    status_update.action_type = proto_action.action_type
+                    status_update.status = "completed" if result.get("success", False) else "failed"
+                    status_update.result_data = json.dumps(result)
+                    await nats_client.nc.publish("n7.actions.status", status_update.SerializeToString())
+                else:
+                    status_payload = json.dumps({
+                        "action_id": proto_action.action_id,
+                        "striker_id": settings.AGENT_ID,
+                        "action_type": proto_action.action_type,
+                        "status": "completed" if result.get("success", False) else "failed",
+                        "result_data": result,
+                    }).encode()
+                    await nats_client.nc.publish("n7.actions.status", status_payload)
                 logger.info(f"Reported status for action {proto_action.action_id}")
             else:
                 logger.warning("NATS not connected. Could not report status.")
 
         except Exception as e:
             logger.error(f"Error processing action: {e}")
-            # Try to report failure
             try:
                 if 'proto_action' in locals() and nats_client.nc.is_connected:
-                    status_update = ProtoAction()
-                    status_update.action_id = proto_action.action_id
-                    status_update.status = "error"
-                    status_update.result_data = json.dumps({"error": str(e)})
-                    await nats_client.nc.publish("n7.actions.status", status_update.SerializeToString())
-            except:
+                    error_payload = json.dumps({
+                        "action_id": getattr(proto_action, "action_id", "unknown"),
+                        "status": "error",
+                        "result_data": {"error": str(e)},
+                    }).encode()
+                    await nats_client.nc.publish("n7.actions.status", error_payload)
+            except Exception:
                 pass

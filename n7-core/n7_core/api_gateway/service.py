@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from uvicorn import Config, Server
 
 # Import Routers
-from .routers import auth, users, agents, events, deployment
+from .routers import auth, users, agents, events, deployment, alerts, threat_intel
 from ..config import settings
 from ..service_manager.base_service import BaseService
 
@@ -28,6 +28,8 @@ app.include_router(users.router, prefix="/api")
 app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
 app.include_router(events.router, prefix="/api/events", tags=["Events"])
 app.include_router(deployment.router, prefix="/api/deployment", tags=["Deployment"])
+app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
+app.include_router(threat_intel.router, prefix="/api/threat-intel", tags=["Threat Intelligence"])
 
 
 @app.get("/health")

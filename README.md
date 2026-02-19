@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Naga-7.jpg" alt="Naga-7 Logo" width="200"/>
+</p>
+
 # Naga-7 (N7)
 
 Naga-7 is an open-source, multi-level AI agent system designed to continuously monitor enterprise infrastructure for security threats and actively mitigate them in real time.

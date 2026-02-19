@@ -59,16 +59,26 @@ class ThreatIntelService(BaseService):
             logger.error(f"Error checking IOC: {e}", exc_info=True)
             return None
 
-    async def add_ioc(self, ioc_type: str, ioc_value: str, confidence: float, source: str, metadata: Dict = None):
+    async def add_ioc(
+        self,
+        ioc_type: str,
+        ioc_value: str,
+        confidence: float,
+        source: str,
+        metadata: Dict = None,
+        ttl: int = None,
+    ):
         """
         Add an IOC to the threat intelligence cache.
-        
+
         Args:
             ioc_type: Type of IOC (ip, domain, hash, url)
             ioc_value: The IOC value
             confidence: Confidence score 0.0-1.0
             source: Source of the intel (e.g., "manual", "feed:abuse.ch")
             metadata: Additional metadata about the IOC
+            ttl: Optional TTL in seconds. Defaults to self.ioc_cache_ttl (3600s).
+                 TI feed callers should pass 86400 (24h) so IOCs survive hourly refresh cycles.
         """
         try:
             ioc_data = {
@@ -81,9 +91,10 @@ class ThreatIntelService(BaseService):
             }
 
             key = f"n7:ioc:{ioc_type}:{ioc_value}"
-            await redis_client.set(key, json.dumps(ioc_data), ex=self.ioc_cache_ttl)
+            effective_ttl = ttl if ttl is not None else self.ioc_cache_ttl
+            await redis_client.set(key, json.dumps(ioc_data), ex=effective_ttl)
 
-            logger.info(f"Added IOC: {ioc_type}={ioc_value} from {source}")
+            logger.info(f"Added IOC: {ioc_type}={ioc_value} from {source} (TTL={effective_ttl}s)")
 
         except Exception as e:
             logger.error(f"Error adding IOC: {e}", exc_info=True)

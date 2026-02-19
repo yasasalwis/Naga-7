@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy import String, JSON, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,7 +13,7 @@ class Alert(Base, UUIDMixin, TimestampMixin):
     """
     __tablename__ = "alerts"
 
-    # We store event_ids as a JSON array or PostgreSQL array. 
+    # We store event_ids as a JSON array or PostgreSQL array.
     # Using JSON for broader compatibility, but ARRAY(UUID) is better for Postgres.
     # Given we are strict on Postgres, let's use ARRAY(String) to avoid UUID complications in lists for now.
     event_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -22,3 +24,9 @@ class Alert(Base, UUIDMixin, TimestampMixin):
     verdict: Mapped[str] = mapped_column(String, nullable=True)  # auto_respond, escalate
     affected_assets: Mapped[list] = mapped_column(JSON, default=list)
     reasoning: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    # LLM Analyzer fields (Feature 1: LLM-Powered Alert Triage & Explainability)
+    # Populated asynchronously by LLMAnalyzerService after alert creation.
+    llm_narrative: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    llm_mitre_tactic: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    llm_mitre_technique: Mapped[Optional[str]] = mapped_column(String, nullable=True)

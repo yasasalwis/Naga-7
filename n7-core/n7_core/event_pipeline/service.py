@@ -37,6 +37,11 @@ class EventPipelineService(BaseService):
         super().__init__("EventPipelineService")
         self._running = False
         self.dedup_window = 60  # seconds
+        self.enrichment_service = None  # Injected via set_enrichment_service()
+
+    def set_enrichment_service(self, enrichment_service):
+        """Inject EnrichmentService (which in turn holds ThreatIntelService)."""
+        self.enrichment_service = enrichment_service
 
     async def start(self):
         self._running = True
@@ -99,9 +104,26 @@ class EventPipelineService(BaseService):
 
             logger.info(f"Processing event: {proto_event.event_id} type={proto_event.event_class}")
 
-            # 2. Enrichment (Placeholder for now)
+            # 2. Enrichment — IOC cross-reference via ThreatIntelService
             enrichments = {}
-            # e.g., enrichments['geo_ip'] = lookup_ip(event_dict['raw_data']['source_ip'])
+            if self.enrichment_service:
+                enrichments = await self.enrichment_service.enrich_event(event_dict)
+
+            # IOC Promotion: if any IOC match found, immediately elevate event to critical
+            if enrichments.get("threat_intel_matches"):
+                logger.warning(
+                    f"IOC match on event {proto_event.event_id} — promoting to critical. "
+                    f"Matches: {enrichments['threat_intel_matches']}"
+                )
+                proto_event.severity = "critical"
+                # Inject match detail into raw_data so Correlator and Dashboard can surface it
+                try:
+                    raw = json.loads(proto_event.raw_data) if proto_event.raw_data else {}
+                    raw["ioc_matched"] = True
+                    raw["ioc_matches"] = enrichments["threat_intel_matches"]
+                    proto_event.raw_data = json.dumps(raw)
+                except Exception:
+                    pass
 
             # 3. Persistence
             async with async_session_maker() as session:

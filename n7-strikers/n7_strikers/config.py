@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Authentication - Unique API key per agent instance
     API_KEY_FILE: str = ".agent_api_key"  # Local file to persist API key
 
-    CAPABILITIES: list[str] = ["kill_process", "block_ip"]
+    CAPABILITIES: list[str] = ["kill_process", "block_ip", "isolate_host", "unisolate_host"]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

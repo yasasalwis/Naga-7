@@ -1,7 +1,7 @@
 # Naga-7 (N7) — Test Plan and Test Cases
 
-**Version:** 1.0.0
-**Date:** 2026-02-17
+**Version:** 1.1.0
+**Date:** 2026-02-19
 **Status:** Draft
 **Classification:** Open Source — Public
 
@@ -217,6 +217,48 @@ services:
 | UT-PB-007 | Step failure — on_failure: abort         | Step fails, `on_failure: abort`                               | Playbook aborts, remaining steps skipped | FR-K002    |
 | UT-PB-008 | Playbook max duration enforcement        | Playbook exceeds `max_duration`                               | Playbook aborted, timeout reported       | FR-K005    |
 
+### 3.8 LLM Analyzer Service
+
+| TC-ID      | Test Case                                          | Input                                                     | Expected Result                                                                   | Req Traced |
+|------------|----------------------------------------------------|-----------------------------------------------------------|-----------------------------------------------------------------------------------|------------|
+| UT-LLM-001 | Successful narrative generation via Ollama         | Mocked httpx returning `{"narrative":"...","mitre_tactic":"TA0009","mitre_technique":"T1083"}` | Correct `llm_narrative`, `llm_mitre_tactic`, `llm_mitre_technique` extracted     | FR-C050    |
+| UT-LLM-002 | Fallback narrative when Ollama unreachable         | httpx raises `ConnectError`                               | `_fallback_narrative()` returns non-empty string, no exception raised, pipeline continues | FR-C052 |
+| UT-LLM-003 | Fallback when Ollama returns malformed JSON        | httpx returns `200 OK` with `{"text": "not valid json structure"}` | Fallback triggered, no KeyError or crash                                         | FR-C052    |
+| UT-LLM-004 | Redis narrative cache hit skips Ollama             | Redis returns cached narrative for known `alert_id`       | Ollama NOT called, cached narrative returned                                     | FR-C054    |
+| UT-LLM-005 | Alert DB updated with LLM fields                  | Successful Ollama response                                | `UPDATE alerts SET llm_narrative=..., llm_mitre_tactic=..., llm_mitre_technique=...` executed | FR-C053 |
+
+### 3.9 Threat Intelligence Fetcher Service
+
+| TC-ID     | Test Case                                     | Input                                                         | Expected Result                                                                 | Req Traced |
+|-----------|-----------------------------------------------|---------------------------------------------------------------|---------------------------------------------------------------------------------|------------|
+| UT-TI-001 | Parse Feodo Tracker JSON — extract IPs        | Mock JSON: `[{"ip_address":"1.2.3.4","malware":"Emotet","status":"Online"}]` | `add_ioc(ioc_type="ip", ioc_value="1.2.3.4", confidence=0.95, ttl=86400)` called | FR-C060 |
+| UT-TI-002 | Parse URLhaus JSON — extract URLs and hosts   | Mock JSON: `{"urls":[{"url":"http://evil.com/a","host":"1.2.3.4","threat":"Emotet"}]}` | Two `add_ioc()` calls: one for URL, one for IP | FR-C060    |
+| UT-TI-003 | Parse OTX pulse — extract multiple IOC types  | Mock OTX response with IPv4, domain, FileHash-SHA256 indicators | `add_ioc()` called once per indicator with correct `ioc_type` mapping           | FR-C060    |
+| UT-TI-004 | Skip OTX feed when API key missing            | `OTX_API_KEY` env var not set                                 | OTX feed skipped with warning log; other feeds continue; no exception           | FR-C063    |
+| UT-TI-005 | IOC cross-reference in EventPipeline          | Event with `raw_data` containing an IP present in Redis IOC cache | `enrichments["threat_intel_matches"]` non-empty; `proto_event.severity` set to `"critical"` | FR-C064 |
+| UT-TI-006 | IOC promotion injects ioc_matched into raw_data | Event matching known IOC                                     | `raw_data["ioc_matched"] == True` and `raw_data["ioc_matches"]` contains match details | FR-C064 |
+
+### 3.10 Network Isolation Actions
+
+| TC-ID     | Test Case                                          | Input                                                      | Expected Result                                                                 | Req Traced |
+|-----------|----------------------------------------------------|------------------------------------------------------------|---------------------------------------------------------------------------------|------------|
+| UT-ISO-001 | Linux isolation — correct iptables commands called | Mocked `subprocess.run`, platform=linux                   | `iptables -N N7_QUARANTINE`, ACCEPT rules for port 4222 and loopback, DROP catch-all, chain inserted into INPUT/OUTPUT | FR-K050 |
+| UT-ISO-002 | Port 4222 ACCEPT rule present before DROP          | Same as above, inspect call order                          | ACCEPT rules for `--dport 4222` and `--sport 4222` appear before the DROP rule in command sequence | FR-K051 |
+| UT-ISO-003 | Linux isolation is idempotent                      | iptables list shows N7_QUARANTINE already in INPUT/OUTPUT  | Chain not inserted again; no duplicate `iptables -I` calls                      | FR-K054    |
+| UT-ISO-004 | Linux unisolation — N7_QUARANTINE chain removed    | Mocked subprocess, platform=linux                         | `iptables -D INPUT`, `iptables -D OUTPUT`, `-F N7_QUARANTINE`, `-X N7_QUARANTINE` called | FR-K052 |
+| UT-ISO-005 | Simulation mode when iptables not found            | `shutil.which("iptables")` returns `None`                  | Returns `{"success": True, "simulated": True}`, no subprocess called           | FR-K053    |
+| UT-ISO-006 | JSON action fallback parsing in ActionExecutor     | NATS message with JSON body `{"action_type":"isolate_host","params":{}}` | Parsed via `_ActionDict` duck-type; `NetworkIsolatorAction.execute()` called   | FR-K055    |
+
+### 3.11 Deception Engine Service
+
+| TC-ID     | Test Case                                          | Input                                              | Expected Result                                                                | Req Traced |
+|-----------|----------------------------------------------------|----------------------------------------------------|--------------------------------------------------------------------------------|------------|
+| UT-DEC-001 | Decoy files created on startup                    | `DeceptionEngineService.start()` called            | All 5 decoy files exist in `DECEPTION_DECOY_DIR`; each has permissions `0o644` | FR-S050    |
+| UT-DEC-002 | Decoy file contents contain HONEYTOKEN marker     | Read content of any decoy file                     | `HONEYTOKEN_NOT_REAL` string present in content; no real credentials or keys   | FR-S051    |
+| UT-DEC-003 | File access event triggers honeytoken alert       | watchdog `FileAccessedEvent` for `AWS_root_credentials.csv` | `_emit_honeytoken_alert()` called with `event_class="honeytoken_access"`, `threat_score=100` | FR-S053 |
+| UT-DEC-004 | Non-decoy file events are filtered                | watchdog event for a file NOT in decoy list        | `_emit_honeytoken_alert()` NOT called; event silently discarded                | FR-S052    |
+| UT-DEC-005 | Honeytoken alert published to correct NATS subject | Mocked NATS client                                | `nats_client.nc.publish("n7.events.sentinel.deception", ...)` called          | FR-S053    |
+
 ---
 
 ## 4. Integration Test Cases
@@ -268,6 +310,37 @@ services:
 | IT-API-005 | Rate limiting                   | Core API running                   | Send 1100 requests in 1 minute      | First 1000 succeed, remaining get 429 Too Many Requests | FR-A008    |
 | IT-API-006 | OpenAPI spec endpoint           | Core API running                   | GET /api/v1/openapi.json            | Valid OpenAPI 3.1 spec returned                         | FR-A007    |
 
+### 4.6 LLM Analyzer Integration
+
+| TC-ID       | Test Case                                              | Setup                                    | Steps                                                                        | Expected Result                                                                                    | Req Traced |
+|-------------|--------------------------------------------------------|------------------------------------------|------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|------------|
+| IT-LLM-001  | Full pipeline: ThreatCorrelator → LLM → DecisionEngine | Core + NATS + Ollama (or mock) + DB      | Trigger correlation rule match (e.g., 10 brute-force events from same IP)    | 1) `n7.llm.analyze` receives JSON bundle; 2) LLMAnalyzerService writes narrative to DB; 3) `n7.alerts` receives enriched ProtoAlert; 4) DecisionEngine produces verdict | FR-C050, FR-C053 |
+| IT-LLM-002  | LLM fallback when Ollama offline                       | Core + NATS + DB (Ollama service stopped) | Trigger same correlation rule match                                          | Alert persisted with `llm_narrative` containing fallback text; pipeline completes without blocking  | FR-C052    |
+| IT-LLM-003  | LLM narrative visible in alerts API                   | Core + DB with LLM-enriched alert        | `GET /api/alerts/?limit=10`                                                  | Response includes `llm_narrative`, `llm_mitre_tactic`, `llm_mitre_technique` fields                | FR-C053    |
+
+### 4.7 Threat Intelligence Pipeline Integration
+
+| TC-ID      | Test Case                                              | Setup                                     | Steps                                                              | Expected Result                                                                        | Req Traced |
+|------------|--------------------------------------------------------|-------------------------------------------|--------------------------------------------------------------------|----------------------------------------------------------------------------------------|------------|
+| IT-TI-001  | TIFetcher populates Redis from mocked feeds            | Core + Redis + mocked HTTP feed responses | Start `TIFetcherService`; wait for first cycle                    | `redis-cli keys "n7:ioc:*"` shows IOCs from all configured feeds with 24h TTL          | FR-C060    |
+| IT-TI-002  | IOC-matched event promoted to critical severity        | Core + Redis with known IP IOC + NATS     | Publish event with raw_data containing known IOC IP               | Event arrives at ThreatCorrelator with `severity="critical"` and `ioc_matched=True`    | FR-C064    |
+| IT-TI-003  | Threat intel stats API returns counts                 | Core + Redis with 100 IOCs (50 IP, 50 URL) | `GET /api/threat-intel/stats`                                    | JSON response: `{"ip": 50, "url": 50, "total": 100}`                                   | FR-C065    |
+
+### 4.8 Host Isolation Integration
+
+| TC-ID      | Test Case                                              | Setup                               | Steps                                                                      | Expected Result                                                               | Req Traced |
+|------------|--------------------------------------------------------|-------------------------------------|----------------------------------------------------------------------------|-------------------------------------------------------------------------------|------------|
+| IT-ISO-001 | Core dispatches isolate_host to broadcast subject      | Core + NATS + Striker               | Publish critical+multi_stage alert verdict with `auto_respond`             | `n7.actions.broadcast` receives JSON `{"action_type":"isolate_host",...}`; Striker logs execution | FR-K055 |
+| IT-ISO-002 | ActionExecutor processes broadcast isolate_host action | Striker + NATS (mocked iptables)    | Publish `isolate_host` JSON to `n7.actions.broadcast`                     | `NetworkIsolatorAction.execute()` invoked; status published to `n7.actions.status` | FR-K050 |
+| IT-ISO-003 | RollbackManager auto-rollback fires after timeout      | Striker + NATS + `auto_rollback_seconds=5` | Register rollback entry; wait 35 seconds                            | `unisolate_host` action published to `n7.actions.{agent_id}`; rollback entry removed from ledger | FR-K061 |
+
+### 4.9 Deception Engine Integration
+
+| TC-ID      | Test Case                                              | Setup                                  | Steps                                                                         | Expected Result                                                                     | Req Traced |
+|------------|--------------------------------------------------------|----------------------------------------|-------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|------------|
+| IT-DEC-001 | Decoy file access generates alert within 2 seconds    | Sentinel + NATS + Core running         | Run `cat /tmp/n7_decoys/AWS_root_credentials.csv` on Sentinel host            | `honeytoken_access` event arrives at Core within 2 seconds; alert created with `threat_score=100` | FR-S053, FR-C060 |
+| IT-DEC-002 | Honeytoken alert shows HONEYTOKEN badge in dashboard  | Full stack including dashboard          | Access decoy file; wait 10 seconds                                            | AlertPanel shows alert with `🍯 HONEYTOKEN` badge                                   | FR-D011    |
+
 ---
 
 ## 5. End-to-End Test Cases
@@ -284,6 +357,10 @@ services:
 | E2E-006 | Rollback after false positive             | Trigger auto-containment → operator identifies false positive → initiates rollback      | Striker rolls back all actions → IP unblocked → rollback logged in audit                                          | BR-R04, FR-K004        |
 | E2E-007 | Dry-run mode validation                   | Enable dry-run, trigger medium severity alert                                           | Decision engine selects playbook → action logged as "dry_run" → NO actual Striker action executed                 | FR-C025                |
 | E2E-008 | Sentinel offline resilience               | Stop NATS, generate 100 events, restart NATS                                            | Sentinel caches events locally → on reconnect, all 100 events replayed → Core processes all                       | FR-S006, BR-OP04       |
+| E2E-009 | LLM-enriched alert visible in dashboard  | Start Ollama, trigger brute-force correlation                                           | Alert appears in AlertPanel with "AI Analysis" box containing narrative and MITRE technique tag                    | BR-D07, FR-C050        |
+| E2E-010 | IOC match triggers critical alert        | Add test IP to Redis IOC cache; inject network event from that IP                       | Event promoted to critical in EventPipeline → ThreatCorrelator fires immediately → alert created with `ioc_matched=True` | BR-O06, FR-C064   |
+| E2E-011 | Honeytoken access full pipeline          | Start Sentinel with DeceptionEngine; access decoy file; wait up to 10 seconds          | `honeytoken_access` alert appears in AlertPanel within 10 seconds with `🍯 HONEYTOKEN` badge and `threat_score=100` | BR-O07, FR-S053       |
+| E2E-012 | Host isolation and auto-rollback         | Trigger critical+multi_stage alert → `isolate_host` dispatched; wait for auto-rollback  | Isolation applied (NATS still reachable); after rollback window, `unisolate_host` executed; full connectivity restored | BR-R07, FR-K061      |
 
 ---
 
@@ -326,7 +403,24 @@ services:
 | ST-AI-001 | Modified agent binary  | Agent binary with altered hash   | Core detects hash mismatch, quarantines agent                             |
 | ST-AI-002 | Agent config tampering | Locally modify agent config file | Agent detects config integrity violation, requests fresh config from Core |
 
-### 6.5 Static Analysis (SAST)
+### 6.5 Honeytoken Deception Security
+
+| TC-ID       | Test Case                                         | Attack Vector / Verification                         | Expected Result                                                                 |
+|-------------|---------------------------------------------------|------------------------------------------------------|---------------------------------------------------------------------------------|
+| ST-HON-001  | Decoy files contain no real credentials           | Code review + automated grep for known key patterns  | All 5 decoy files contain `HONEYTOKEN_NOT_REAL` marker; no regex match for real key/secret patterns |
+| ST-HON-002  | Decoy directory inaccessible to non-root users    | Verify permissions after `start()`                  | Files have mode `0o644`; directory not world-writable                           |
+| ST-HON-003  | Honeytoken event cannot be suppressed by attacker | Attempt to delete decoy files before read            | Delete event triggers `honeytoken_access` alert (watchdog catches all event types) |
+
+### 6.6 Host Isolation Security
+
+| TC-ID       | Test Case                                             | Attack Vector / Verification                         | Expected Result                                                                 |
+|-------------|-------------------------------------------------------|------------------------------------------------------|---------------------------------------------------------------------------------|
+| ST-ISO-001  | NATS remains reachable after isolation                | After `isolate_host`, attempt TCP connect to port 4222 on isolated host | Connection succeeds (ACCEPT rule active)                   |
+| ST-ISO-002  | Non-NATS traffic blocked after isolation             | After `isolate_host`, attempt TCP connect to port 22 (SSH) | Connection times out or is refused (DROP rule active)                         |
+| ST-ISO-003  | Unisolate fully restores connectivity                 | After `unisolate_host`, attempt TCP connect to port 22 | Connection succeeds; N7_QUARANTINE chain absent from `iptables -L`            |
+| ST-ISO-004  | Isolation cannot be triggered without Core authorization | Send `isolate_host` action to Striker with invalid/no token | Action rejected (authorization check); no iptables rules created             |
+
+### 6.7 Static Analysis (SAST)
 
 | TC-ID     | Tool                            | Target                     | Pass Criteria                                 |
 |-----------|---------------------------------|----------------------------|-----------------------------------------------|
@@ -367,7 +461,16 @@ services:
 | PT-R-003 | Core memory under sustained load   | 10,000 events/sec for 1 hour                      | No memory leak (RSS stable within 10%)      |
 | PT-R-004 | Offline cache growth               | Sentinel disconnected from NATS, 1,000 events/sec | Cache grows linearly, respects 500 MB limit |
 
-### 7.4 Scalability Tests
+### 7.4 LLM and TI Performance Tests
+
+| TC-ID      | Test Case                                | Scenario                                                    | Target                   | Tool                               |
+|------------|------------------------------------------|-------------------------------------------------------------|--------------------------|------------------------------------|
+| PT-LLM-001 | LLM analysis latency per alert          | Trigger 10 sequential alerts with Ollama running locally    | < 15 seconds per alert   | Embedded timing                    |
+| PT-LLM-002 | LLM pipeline does not block alert flow  | Trigger 50 alerts rapidly; Ollama responds slowly (mocked 10s delay) | DecisionEngine receives all 50 alerts; no NATS message backpressure | NATS metrics + timing |
+| PT-TI-001  | TI feed ingestion throughput            | Ingest 10,000 IOCs from mocked feeds                        | Completes within 60 seconds | Embedded timing                 |
+| PT-TI-002  | IOC lookup latency in Redis             | Lookup 1,000 IOCs with varying hit/miss ratios              | < 5 ms per lookup (p99)  | Embedded timing                    |
+
+### 7.5 Scalability Tests
 
 | TC-ID    | Test Case                | Scenario                                       | Target                                      |
 |----------|--------------------------|------------------------------------------------|---------------------------------------------|
@@ -486,3 +589,12 @@ These tests validate business requirements from the BRD and map to success crite
 |----------|----------------------------------------------------------------------|
 | Nightly  | Full E2E test suite, performance benchmarks                          |
 | Weekly   | Soak test (24h sustained load), full security scan, dependency audit |
+
+---
+
+## 12. Revision History
+
+| Version | Date       | Author  | Changes                                                                                                                                                                  |
+|---------|------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1.0.0   | 2026-02-17 | N7 Team | Initial release                                                                                                                                                          |
+| 1.1.0   | 2026-02-19 | N7 Team | Added §3.8 UT-LLM-* (LLM Analyzer unit tests). Added §3.9 UT-TI-* (TI Fetcher unit tests). Added §3.10 UT-ISO-* (Host Isolation unit tests). Added §3.11 UT-DEC-* (Deception Engine unit tests). Added §4.6–§4.9 integration tests for LLM, TI, isolation, and deception. Added §6.5–§6.6 honeytoken and isolation security tests. Added §7.4 LLM and TI performance tests. Added E2E-009–E2E-012 end-to-end scenarios. |

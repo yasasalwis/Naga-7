@@ -1,7 +1,7 @@
 # Naga-7 (N7) — Software Requirements Specification (SRS)
 
-**Version:** 1.0.0
-**Date:** 2026-02-17
+**Version:** 1.1.0
+**Date:** 2026-02-19
 **Status:** Draft
 **Classification:** Open Source — Public
 **Standard:** IEEE 830-1998 Adapted
@@ -174,7 +174,28 @@ Additional terms:
 | FR-C033 | The Core shall enforce agent capability-based routing — only dispatch tasks to Strikers with matching capabilities                                                            | Critical | BR-O02    |
 | FR-C034 | The Core shall support agent grouping by zone/segment for scoped deployments                                                                                                  | Medium   | BR-OP02   |
 
-### 3.5 Audit and Compliance
+### 3.5 LLM-Powered Alert Analysis
+
+| ID       | Requirement                                                                                                                                                                    | Priority | Traces To |
+|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-----------|
+| FR-C050  | The Core shall generate a plain-English narrative for every alert using a locally hosted LLM (Ollama/llama3), including an assessment of attacker intent and affected systems  | High     | BR-D07    |
+| FR-C051  | The Core's LLM analysis shall map each alert to MITRE ATT&CK tactic and technique identifiers                                                                                 | High     | BR-D07    |
+| FR-C052  | If the LLM service is unavailable, the Core shall generate a structured fallback narrative from the correlation reasoning fields without blocking the alert pipeline            | Critical | BR-D07    |
+| FR-C053  | LLM-generated narratives shall be stored in the `alerts` table and returned by the alerts API (fields: `llm_narrative`, `llm_mitre_tactic`, `llm_mitre_technique`)            | High     | BR-D07    |
+| FR-C054  | LLM narratives shall be cached in Redis (`n7:llm:narrative:{alert_id}`, TTL 3600 s) to prevent duplicate LLM calls for the same alert                                        | Medium   | BR-D07    |
+
+### 3.6 Automated Threat Intelligence Ingestion
+
+| ID       | Requirement                                                                                                                                                                     | Priority | Traces To |
+|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-----------|
+| FR-C060  | The Core shall periodically ingest Indicators of Compromise (IOCs) from the following open-source TI feeds: OTX AlienVault, Abuse.ch URLhaus, Feodo Tracker                    | High     | BR-O06    |
+| FR-C061  | Ingested IOCs shall be stored in Redis (`n7:ioc:{type}:{value}`) with a configurable TTL (default: 86400 s / 24 hours)                                                         | High     | BR-O06    |
+| FR-C062  | The TI ingestion interval shall be configurable via environment variable `TI_FETCH_INTERVAL` (default: 3600 s)                                                                  | Medium   | BR-O06    |
+| FR-C063  | If OTX authentication is not configured, the Core shall skip the OTX feed with a warning and continue ingesting the remaining unauthenticated feeds                            | High     | BR-O06    |
+| FR-C064  | The Event Pipeline shall cross-reference each incoming event against the Redis IOC cache; any match shall immediately elevate the event severity to `critical` and annotate the event's `raw_data` with `ioc_matched: true` and the matching IOC details | Critical | BR-O06    |
+| FR-C065  | The Core API shall expose a `GET /api/threat-intel/stats` endpoint returning IOC counts by type and a `GET /api/threat-intel/lookup` endpoint for individual IOC queries       | Medium   | BR-O06    |
+
+### 3.7 Audit and Compliance
 
 | ID      | Requirement                                                                                                           | Priority | Traces To |
 |---------|-----------------------------------------------------------------------------------------------------------------------|----------|-----------|
@@ -182,6 +203,8 @@ Additional terms:
 | FR-C041 | Audit logs shall be append-only and tamper-evident (hash-chained)                                                     | Critical | BR-O05    |
 | FR-C042 | The Core shall support export of audit logs in OCSF and CEF formats                                                   | High     | BR-O04    |
 | FR-C043 | The Core shall support configurable audit log retention policies with automated archival                              | Medium   | BR-O05    |
+
+
 
 ---
 
@@ -238,6 +261,17 @@ Additional terms:
 | FR-S042 | The Log Sentinel shall support configurable log parsing rules (regex, grok, JSON path)                         | High     | BR-D04    |
 | FR-S043 | The Log Sentinel shall detect known threat indicators in log content (IOC matching against threat intel feeds) | High     | BR-D03    |
 
+### 4.6 Deception Engine (Honeytoken Sentinel)
+
+| ID      | Requirement                                                                                                                                                                       | Priority | Traces To |
+|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-----------|
+| FR-S050 | The Endpoint Sentinel shall deploy a configurable set of honeytoken decoy files (e.g., fake credentials, SSH keys, `.env` files) into a monitored directory on startup            | High     | BR-O07    |
+| FR-S051 | All honeytoken decoy file contents shall be clearly marked as non-real (`HONEYTOKEN_NOT_REAL`) and must not contain any actual credentials, keys, or sensitive information        | Critical | BR-O07    |
+| FR-S052 | The Sentinel shall monitor the decoy directory for any filesystem access (read, write, delete, rename) using an OS-level file watcher                                             | High     | BR-O07    |
+| FR-S053 | Any access to a honeytoken file shall generate an event of class `honeytoken_access` with `severity=critical` and `threat_score=100`, published to `n7.events.sentinel.deception` | Critical | BR-O07    |
+| FR-S054 | The decoy directory path shall be configurable via the `DECEPTION_DECOY_DIR` environment variable (default: `/tmp/n7_decoys`)                                                    | Medium   | BR-O07    |
+| FR-S055 | The Deception Engine shall be enabled/disabled via the `DECEPTION_ENABLED` environment variable                                                                                   | Medium   | BR-O07    |
+
 ---
 
 ## 5. Functional Requirements — N7-Strikers
@@ -282,7 +316,27 @@ Additional terms:
 | FR-K032 | The Cloud Striker shall snapshot compromised instances for forensic analysis before termination               | High     | FR-K007   |
 | FR-K033 | The Cloud Striker shall isolate compromised cloud resources by moving them to a quarantine VPC/resource group | High     | BR-R01    |
 
-### 5.5 Forensic Collector
+### 5.5 Host Isolation (Network Quarantine)
+
+| ID      | Requirement                                                                                                                                                                  | Priority | Traces To |
+|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-----------|
+| FR-K050 | The Endpoint Striker shall support an `isolate_host` action that creates a host-level firewall quarantine zone (iptables `N7_QUARANTINE` chain on Linux; Windows Firewall rules on Windows) | Critical | BR-R07    |
+| FR-K051 | The host isolation firewall rules shall explicitly permit ESTABLISHED/RELATED connections, loopback traffic, and TCP port 4222 (NATS) inbound and outbound while blocking all other traffic | Critical | BR-R07    |
+| FR-K052 | The Striker shall support an `unisolate_host` action that fully removes the quarantine rules and restores normal network connectivity                                         | Critical | BR-R07    |
+| FR-K053 | If the firewall binary (`iptables`, `netsh`) is not available, the isolation action shall simulate success and return `simulated: true` in the result without raising an error | Medium   | BR-R07    |
+| FR-K054 | The `isolate_host` action shall be idempotent — re-applying isolation on an already-isolated host shall not create duplicate rules                                            | High     | BR-R07    |
+| FR-K055 | The ActionExecutorService shall subscribe to the `n7.actions.broadcast` NATS subject with queue group `action_executor` to enable Core to dispatch actions without knowing a specific Striker agent ID | High     | BR-R07    |
+
+### 5.6 Active Rollback Manager
+
+| ID      | Requirement                                                                                                                                                          | Priority | Traces To |
+|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-----------|
+| FR-K060 | The Striker shall maintain an in-memory rollback ledger mapping each executed action to its corresponding undo action type and parameters                             | High     | BR-R07    |
+| FR-K061 | The rollback ledger shall support timed auto-rollback: if an `auto_rollback_seconds` value is specified when registering a rollback entry, the Striker shall automatically publish the undo action after that interval | High     | BR-R07    |
+| FR-K062 | The rollback scheduler shall check for expired rollback entries every 30 seconds                                                                                     | Medium   | BR-R07    |
+| FR-K063 | Auto-rollback dispatch shall publish the undo action to `n7.actions.{agent_id}` so the same Striker processes it locally                                             | High     | BR-R07    |
+
+### 5.7 Forensic Collector
 
 | ID      | Requirement                                                                                                                              | Priority | Traces To |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------|----------|-----------|
@@ -299,14 +353,17 @@ Additional terms:
 
 | ID      | Requirement                                                                                                    | Priority | Traces To |
 |---------|----------------------------------------------------------------------------------------------------------------|----------|-----------|
-| FR-D001 | The dashboard shall display a real-time threat map showing active alerts, incidents, and affected assets       | Critical | BR-O01    |
-| FR-D002 | The dashboard shall provide alert triage workflows (acknowledge, investigate, escalate, dismiss)               | Critical | BR-R02    |
-| FR-D003 | The dashboard shall display agent health status for all Sentinels and Strikers                                 | High     | FR-C030   |
-| FR-D004 | The dashboard shall provide incident timeline views showing event correlation, decisions, and response actions | High     | BR-O05    |
-| FR-D005 | The dashboard shall support role-based views (Analyst, Operator, Administrator, Auditor)                       | High     | BR-O03    |
-| FR-D006 | The dashboard shall provide search and filter capabilities across events, alerts, and incidents                | High     | BR-O04    |
-| FR-D007 | The dashboard shall support configurable notification rules (email, webhook, Slack, PagerDuty)                 | High     | FR-C023   |
-| FR-D008 | The dashboard shall provide playbook management UI (create, edit, enable/disable, test)                        | High     | BR-R03    |
+| FR-D001 | The dashboard shall display a real-time threat map showing active alerts, incidents, and affected assets                                                                     | Critical | BR-O01    |
+| FR-D002 | The dashboard shall provide alert triage workflows (acknowledge, investigate, escalate, dismiss)                                                                              | Critical | BR-R02    |
+| FR-D003 | The dashboard shall display agent health status for all Sentinels and Strikers                                                                                               | High     | FR-C030   |
+| FR-D004 | The dashboard shall provide incident timeline views showing event correlation, decisions, and response actions                                                               | High     | BR-O05    |
+| FR-D005 | The dashboard shall support role-based views (Analyst, Operator, Administrator, Auditor)                                                                                     | High     | BR-O03    |
+| FR-D006 | The dashboard shall provide search and filter capabilities across events, alerts, and incidents                                                                               | High     | BR-O04    |
+| FR-D007 | The dashboard shall support configurable notification rules (email, webhook, Slack, PagerDuty)                                                                               | High     | FR-C023   |
+| FR-D008 | The dashboard shall provide playbook management UI (create, edit, enable/disable, test)                                                                                      | High     | BR-R03    |
+| FR-D009 | The dashboard AlertPanel shall poll `GET /api/alerts/` every 5 seconds and display severity badge, threat score, affected assets, MITRE tactic, and technique for each alert | High     | BR-D07    |
+| FR-D010 | When an alert has an `llm_narrative` value, the AlertPanel shall render an "AI Analysis" section displaying the narrative and MITRE tactic/technique tags                    | High     | BR-D07    |
+| FR-D011 | Alerts with `threat_score >= 100` or originating from a `honeytoken_access` rule shall receive a distinct visual `HONEYTOKEN` badge in the AlertPanel                       | High     | BR-O07    |
 
 ### 6.2 REST API
 
@@ -428,16 +485,20 @@ Additional terms:
 
 #### 9.1.2 Alert
 
-| Field           | Type            | Description                                           |
-|-----------------|-----------------|-------------------------------------------------------|
-| alert_id        | UUID            | Unique alert identifier                               |
-| created_at      | ISO 8601        | Alert creation time                                   |
-| event_ids       | Array[UUID]     | Contributing events                                   |
-| threat_score    | Integer (0-100) | Composite threat score                                |
-| severity        | Enum            | Computed severity level                               |
-| status          | Enum            | new, acknowledged, investigating, resolved, dismissed |
-| verdict         | Enum            | auto_respond, escalate, dismiss, pending              |
-| affected_assets | Array[Asset]    | Impacted infrastructure assets                        |
+| Field               | Type            | Description                                                       |
+|---------------------|-----------------|-------------------------------------------------------------------|
+| alert_id            | UUID            | Unique alert identifier                                           |
+| created_at          | ISO 8601        | Alert creation time                                               |
+| event_ids           | Array[UUID]     | Contributing events                                               |
+| threat_score        | Integer (0-100) | Composite threat score (100 for honeytoken alerts)                |
+| severity            | Enum            | Computed severity level                                           |
+| status              | Enum            | new, acknowledged, investigating, resolved, dismissed             |
+| verdict             | Enum            | auto_respond, escalate, dismiss, pending                          |
+| affected_assets     | Array[Asset]    | Impacted infrastructure assets                                    |
+| reasoning           | JSON            | Correlation reasoning and contributing factors                    |
+| llm_narrative       | String (nullable) | LLM-generated plain-English attack narrative (FR-C050)          |
+| llm_mitre_tactic    | String (nullable) | LLM-identified MITRE ATT&CK tactic (e.g., "TA0009 Collection")  |
+| llm_mitre_technique | String (nullable) | LLM-identified MITRE ATT&CK technique (e.g., "T1083")           |
 
 #### 9.1.3 Incident
 
@@ -518,9 +579,19 @@ N7 aims to provide detection coverage for the following ATT&CK tactics in the in
 - Privilege Escalation (TA0004)
 - Defense Evasion (TA0005)
 - Credential Access (TA0006)
-- Discovery (TA0007)
+- Discovery (TA0007) — *Honeytoken Deception Engine covers T1083 File and Directory Discovery*
 - Lateral Movement (TA0008)
+- Collection (TA0009) — *Honeytoken alerts map to this tactic*
 - Command and Control (TA0011)
 - Exfiltration (TA0010)
 
 Specific technique coverage will be documented in a living matrix at `docs/mitre-coverage.md`.
+
+---
+
+## 12. Revision History
+
+| Version | Date       | Author    | Changes                                                                                                     |
+|---------|------------|-----------|-------------------------------------------------------------------------------------------------------------|
+| 1.0.0   | 2026-02-17 | N7 Team   | Initial release                                                                                             |
+| 1.1.0   | 2026-02-19 | N7 Team   | Added FR-C050–FR-C065 (LLM Analyzer, TI Ingestion), FR-S050–FR-S055 (Deception Engine), FR-K050–FR-K063 (Host Isolation, Rollback Manager), FR-D009–FR-D011 (AlertPanel). Updated Alert data model with LLM columns. Added Collection (TA0009) and Discovery (TA0007/T1083) to MITRE coverage. |

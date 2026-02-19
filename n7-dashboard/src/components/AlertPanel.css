@@ -1,0 +1,249 @@
+/* AlertPanel.css — Styles for the Alert Triage panel */
+
+.alert-panel-container {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 20px;
+    font-family: 'Courier New', monospace;
+    color: #e2e8f0;
+}
+
+.alert-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #f8fafc;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 12px;
+}
+
+.alert-panel-title-icon {
+    color: #f97316;
+}
+
+.alert-panel-error {
+    background: #7f1d1d;
+    color: #fca5a5;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+}
+
+.alert-panel-empty {
+    color: #64748b;
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 24px 0;
+}
+
+/* Alert list */
+.alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Alert card */
+.alert-card {
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 14px;
+    background: #1e293b;
+    transition: border-color 0.2s;
+}
+
+.alert-card.severity-critical {
+    border-left: 4px solid #ef4444;
+}
+.alert-card.severity-high {
+    border-left: 4px solid #f97316;
+}
+.alert-card.severity-medium {
+    border-left: 4px solid #eab308;
+}
+.alert-card.severity-low {
+    border-left: 4px solid #22c55e;
+}
+
+/* Card header */
+.alert-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.alert-card-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.alert-timestamp {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* Severity badges */
+.severity-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+}
+.severity-badge.severity-critical { background: #7f1d1d; color: #fca5a5; }
+.severity-badge.severity-high     { background: #7c2d12; color: #fed7aa; }
+.severity-badge.severity-medium   { background: #713f12; color: #fef08a; }
+.severity-badge.severity-low      { background: #14532d; color: #86efac; }
+
+.threat-score-badge {
+    font-size: 0.7rem;
+    background: #1e3a5f;
+    color: #93c5fd;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.honeytoken-badge {
+    font-size: 0.7rem;
+    background: #4c1d95;
+    color: #c4b5fd;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.multi-stage-badge {
+    font-size: 0.7rem;
+    background: #1e3a5f;
+    color: #60a5fa;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+/* Alert body */
+.alert-rule {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 4px;
+}
+
+.alert-source {
+    font-weight: 400;
+    color: #94a3b8;
+}
+
+.alert-description {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    margin: 4px 0 8px 0;
+    line-height: 1.4;
+}
+
+.alert-assets {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    margin-bottom: 4px;
+}
+
+.alert-assets-label {
+    color: #64748b;
+}
+
+.alert-mitre {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+
+.mitre-label {
+    color: #64748b;
+}
+
+/* LLM Narrative box */
+.llm-analysis-box {
+    background: #0f2744;
+    border: 1px solid #1d4ed8;
+    border-radius: 5px;
+    padding: 10px 14px;
+    margin-top: 10px;
+}
+
+.llm-analysis-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #60a5fa;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.llm-icon {
+    color: #60a5fa;
+}
+
+.llm-narrative {
+    font-size: 0.84rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+    margin: 0 0 8px 0;
+    font-family: inherit;
+}
+
+.llm-mitre {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.llm-mitre-tag {
+    font-size: 0.72rem;
+    background: #1e3a5f;
+    color: #93c5fd;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+/* Verdict */
+.alert-verdict {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-top: 8px;
+    padding: 4px 8px;
+    border-radius: 3px;
+    width: fit-content;
+}
+
+.verdict-auto_respond {
+    background: #7f1d1d;
+    color: #fca5a5;
+}
+
+.verdict-escalate {
+    background: #713f12;
+    color: #fef08a;
+}
+
+.verdict-dismiss {
+    background: #1e293b;
+    color: #64748b;
+}

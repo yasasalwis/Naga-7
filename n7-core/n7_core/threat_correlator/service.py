@@ -276,7 +276,7 @@ class ThreatCorrelatorService(BaseService):
         }
 
         # Calculate threat score based on severity and MITRE mapping
-        threat_score = self._calculate_threat_score(severity, is_multi_stage)
+        threat_score = self._calculate_threat_score(severity, is_multi_stage, rule_id=rule_id)
 
         # Create protobuf alert
         proto_alert = ProtoAlert(
@@ -307,13 +307,44 @@ class ThreatCorrelatorService(BaseService):
             session.add(db_alert)
             await session.commit()
 
-        # Publish alert to NATS
+        # Route through LLM Analyzer instead of publishing directly to n7.alerts.
+        # LLMAnalyzerService enriches the alert with a narrative then forwards to n7.alerts.
+        llm_bundle = {
+            "alert_id": alert_id,
+            "reasoning": reasoning,
+            "threat_score": threat_score,
+            "severity": severity,
+            "event_ids": event_ids,
+            "affected_assets": [source_identifier],
+            "event_summaries": self._build_event_summaries(source_identifier, event_ids),
+        }
         if nats_client.nc:
-            await nats_client.nc.publish("n7.alerts", proto_alert.SerializeToString())
-            logger.info(f"Published alert {alert_id} for rule '{rule['name']}'")
+            await nats_client.nc.publish("n7.llm.analyze", json.dumps(llm_bundle).encode())
+            logger.info(f"Sent alert bundle {alert_id} to n7.llm.analyze for rule '{rule['name']}'")
 
-    def _calculate_threat_score(self, severity: str, is_multi_stage: bool) -> int:
-        """Calculate threat score based on severity and attack complexity"""
+    def _build_event_summaries(self, source_identifier: str, event_ids: List[str]) -> List[Dict]:
+        """Return abbreviated summaries (up to 5) of buffered events matching given IDs."""
+        summaries = []
+        event_id_set = set(event_ids)
+        buffered = self.event_buffer.get(source_identifier, [])
+        for record in buffered:
+            if record.get("event_id") in event_id_set:
+                summaries.append({
+                    "event_id": record.get("event_id"),
+                    "event_class": record.get("event_class"),
+                    "timestamp": record.get("timestamp").isoformat() if record.get("timestamp") else None,
+                    "raw_data": record.get("raw_data", {}),
+                })
+            if len(summaries) >= 5:
+                break
+        return summaries
+
+    def _calculate_threat_score(self, severity: str, is_multi_stage: bool, rule_id: str = "") -> int:
+        """Calculate threat score based on severity and attack complexity."""
+        # Honeytoken access is always maximum confidence (100)
+        if rule_id == "honeytoken_access":
+            return 100
+
         base_scores = {
             "critical": 90,
             "high": 75,

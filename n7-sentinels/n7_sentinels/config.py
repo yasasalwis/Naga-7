@@ -16,6 +16,10 @@ class Settings(BaseSettings):
 
     CORE_API_URL: str = "http://localhost:8000/api/v1"
 
+    # Deception Engine
+    DECEPTION_ENABLED: bool = True
+    DECEPTION_DECOY_DIR: str = "/tmp/n7_decoys"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

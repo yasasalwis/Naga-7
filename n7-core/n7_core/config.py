@@ -32,5 +32,14 @@ class Settings(BaseSettings):
     # Redis (Cache)
     REDIS_URL: RedisDsn = "redis://localhost:6379/0"
 
+    # LLM Analyzer (Ollama — runs locally for on-premise data security)
+    OLLAMA_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3"
+
+    # Threat Intelligence Feed Ingestion
+    OTX_API_KEY: str = ""          # Set via environment variable OTX_API_KEY
+    TI_FETCH_INTERVAL: int = 3600  # Seconds between TI feed refresh cycles (1 hour)
+    TI_IOC_TTL: int = 86400        # Redis TTL for feed-sourced IOCs (24 hours)
+
 
 settings = Settings()

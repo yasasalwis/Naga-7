@@ -1,7 +1,7 @@
 # Naga-7 (N7) — Technical Design Document (TDD)
 
-**Version:** 1.0.0
-**Date:** 2026-02-17
+**Version:** 1.1.0
+**Date:** 2026-02-19
 **Status:** Draft
 **Classification:** Open Source — Public
 
@@ -409,6 +409,99 @@ async def select_striker(action_type: str, target_zone: str) -> AgentRecord:
     return min(candidates, key=lambda a: a.resource_usage.cpu_percent)
 ```
 
+### 4.6 LLM Analyzer Service
+
+**Responsibility:** Generate plain-English MITRE ATT&CK-mapped narratives for every alert using a locally hosted LLM.
+
+**Data Flow:**
+
+```
+ThreatCorrelatorService
+    │  publishes JSON bundle to n7.llm.analyze
+    ▼
+LLMAnalyzerService  (queue group: llm_analyzer)
+    │  POST /api/generate → Ollama (localhost:11434)
+    │  model: llama3 (configurable via OLLAMA_MODEL)
+    │  prompt requests: { narrative, mitre_tactic, mitre_technique }
+    │
+    ├─ On success: UPDATE alerts SET llm_narrative=..., llm_mitre_tactic=..., llm_mitre_technique=...
+    │              Cache in Redis: n7:llm:narrative:{alert_id}  TTL=3600s
+    │
+    └─ On Ollama failure: _fallback_narrative() from reasoning dict (never blocks pipeline)
+    │
+    ▼
+Publishes ProtoAlert to n7.alerts → DecisionEngineService
+```
+
+**Key Design Decisions:**
+
+- **On-premise only:** Ollama runs locally; no data is sent to external cloud LLM providers.
+- **Graceful degradation:** If Ollama is unreachable or returns invalid JSON, `_fallback_narrative()` constructs a
+  deterministic narrative from the `reasoning` dict. The alert is never lost.
+- **Redis caching:** `n7:llm:narrative:{alert_id}` (TTL 3600s) prevents duplicate LLM calls if a message is replayed.
+- **Async DB update:** Narratives are written via `UPDATE` (not INSERT) — the Alert row already exists from
+  `ThreatCorrelatorService._create_alert()`.
+- **LLM bundle format:** The JSON message on `n7.llm.analyze` contains: `alert_id`, `severity`, `threat_score`,
+  `reasoning`, `event_ids`, `affected_assets`, `event_summaries` (up to 5 abbreviated event records).
+
+**Configuration:**
+
+| Variable      | Default                   | Description                        |
+|---------------|---------------------------|------------------------------------|
+| `OLLAMA_URL`  | `http://localhost:11434`  | Ollama server base URL             |
+| `OLLAMA_MODEL`| `llama3`                  | Model to use for narrative generation |
+
+### 4.7 Threat Intelligence Fetcher Service
+
+**Responsibility:** Periodically download IOC lists from open-source TI feeds and populate the Redis IOC cache via `ThreatIntelService`.
+
+**Data Flow:**
+
+```
+TIFetcherService (background loop, every TI_FETCH_INTERVAL seconds)
+    │
+    ├─ OTX AlienVault  (auth: X-OTX-API-KEY header, env: OTX_API_KEY)
+    │   URL: https://otx.alienvault.com/api/v1/pulses/subscribed?limit=20
+    │   Extracts: IPv4, domain, URL, hostname, FileHash-MD5/SHA1/SHA256
+    │
+    ├─ Abuse.ch URLhaus  (unauthenticated)
+    │   URL: https://urlhaus-api.abuse.ch/v1/urls/recent/limit/500/
+    │   Extracts: malicious URLs and associated host IPs/domains
+    │
+    └─ Feodo Tracker  (unauthenticated)
+        URL: https://feodotracker.abuse.ch/downloads/ipblocklist.json
+        Extracts: botnet C2 server IPs (confidence: 0.95)
+
+All IOCs → ThreatIntelService.add_ioc(..., ttl=86400)
+         → Redis key: n7:ioc:{type}:{value}  (24-hour TTL)
+```
+
+**EventPipeline Integration:**
+
+```
+EventPipelineService.handle_event()
+    │
+    ├─ [1] Deduplication (Redis)
+    │
+    ├─ [2] EnrichmentService.enrich_event(event_dict)
+    │        └─ ThreatIntelService.enrich_with_threat_intel()
+    │             └─ checks n7:ioc:* for IPs, domains, URLs, hashes in raw_data
+    │
+    └─ [3] IOC Promotion:
+             if enrichments["threat_intel_matches"]:
+                 proto_event.severity = "critical"
+                 raw_data["ioc_matched"] = True
+                 raw_data["ioc_matches"] = [...match details...]
+```
+
+**Configuration:**
+
+| Variable             | Default | Description                              |
+|----------------------|---------|------------------------------------------|
+| `OTX_API_KEY`        | `""`    | OTX AlienVault API key (feed skipped if unset) |
+| `TI_FETCH_INTERVAL`  | `3600`  | Seconds between TI ingestion cycles      |
+| `TI_IOC_TTL`         | `86400` | Redis TTL for feed-sourced IOCs (seconds) |
+
 ---
 
 ## 5. N7-Sentinel Architecture
@@ -538,6 +631,62 @@ When the message bus is unreachable, the Event Emitter buffers events locally:
 - **Capacity:** Configurable max size (default: 500 MB), oldest events evicted on overflow.
 - **Replay:** On reconnection, buffered events are replayed in order with original timestamps.
 - **Dedup on replay:** Events include a `first_seen` timestamp so the Core can handle delayed duplicates.
+
+### 5.5 Deception Engine Service
+
+**Responsibility:** Deploy and monitor honeytoken decoy files on the endpoint to detect attacker reconnaissance with zero false positives.
+
+**Process Flow:**
+
+```
+DeceptionEngineService.start()
+    │
+    ├─ Create DECEPTION_DECOY_DIR (/tmp/n7_decoys by default)
+    │
+    ├─ Write 5 decoy files (all content marked HONEYTOKEN_NOT_REAL):
+    │     AWS_root_credentials.csv
+    │     Passwords.kdbx.txt
+    │     id_rsa_backup
+    │     .env.production
+    │     internal_api_keys.json
+    │   Permissions: 644 (rw-r--r--)
+    │
+    ├─ Start watchdog Observer on DECEPTION_DECOY_DIR
+    │     DeceptionEventHandler(FileSystemEventHandler)
+    │       ↓ bridges watchdog thread events → asyncio.Queue
+    │         via asyncio.run_coroutine_threadsafe()
+    │         (filters: only events matching known decoy filenames)
+    │
+    └─ _monitor_loop():
+          await queue.get()
+          → _emit_honeytoken_alert(fs_event)
+               event_class  = "honeytoken_access"
+               severity     = "critical"
+               threat_score = 100
+               deception_triggered = True
+               NATS subject: n7.events.sentinel.deception
+```
+
+**Key Design Decisions:**
+
+- **Zero false positives:** `threshold=1` in the `honeytoken_access` correlation rule — any single access immediately
+  generates a 100% confidence critical alert.
+- **No real credentials:** All decoy file contents are clearly marked `HONEYTOKEN_NOT_REAL` and contain only example
+  placeholder data. This must be verified in every code review.
+- **Thread-bridge:** watchdog runs in a background thread; `asyncio.run_coroutine_threadsafe()` safely enqueues events
+  into the async event loop without blocking the watchdog thread.
+- **NATS subject:** Events publish directly to `n7.events.sentinel.deception` which is caught by the Core's
+  `n7.events.>` wildcard subscription. The explicit subject allows Core to identify deception events without
+  parsing event content.
+- **Fallback:** If NATS is disconnected, events fall back to `EventEmitterService.emit()` for local buffering and
+  later replay.
+
+**Configuration:**
+
+| Variable              | Default          | Description                              |
+|-----------------------|------------------|------------------------------------------|
+| `DECEPTION_ENABLED`   | `True`           | Enable/disable the Deception Engine      |
+| `DECEPTION_DECOY_DIR` | `/tmp/n7_decoys` | Directory where decoy files are deployed |
 
 ---
 
@@ -692,6 +841,69 @@ Rollback can be triggered:
 - **Automatically** if a playbook step fails and `on_failure: rollback_all` is set.
 - **On timeout** if the incident is not confirmed within a configurable window.
 
+### 6.5 Network Isolation Action (Host Quarantine)
+
+**Responsibility:** Quarantine a compromised host at the firewall level while preserving management connectivity.
+
+**Isolation Logic (Linux — iptables):**
+
+```
+NetworkIsolatorAction.execute()
+    │
+    ├─ Create iptables chain: N7_QUARANTINE
+    │
+    ├─ Add ACCEPT rules to N7_QUARANTINE:
+    │     -m state --state ESTABLISHED,RELATED   (preserve existing sessions)
+    │     -i lo / -o lo                          (loopback traffic)
+    │     -p tcp --dport 4222                    (NATS inbound)
+    │     -p tcp --sport 4222                    (NATS outbound)
+    │
+    ├─ Add DROP catch-all to N7_QUARANTINE (last rule)
+    │
+    ├─ Insert chain into INPUT  at position 1 (idempotent check first)
+    └─ Insert chain into OUTPUT at position 1 (idempotent check first)
+
+NetworkUnisolatorAction.execute()
+    ├─ iptables -D INPUT  -j N7_QUARANTINE
+    ├─ iptables -D OUTPUT -j N7_QUARANTINE
+    ├─ iptables -F N7_QUARANTINE   (flush rules)
+    └─ iptables -X N7_QUARANTINE   (delete chain)
+```
+
+**Windows path:** PowerShell `New-NetFirewallRule` ALLOW for NATS port 4222 + block-all inbound/outbound rules.
+
+**Simulation mode:** If `iptables` binary is absent, returns `{success: True, simulated: True}` — enables testing
+without firewall privileges.
+
+**Broadcast Dispatch:** `ActionExecutorService` subscribes to `n7.actions.broadcast` (queue group: `action_executor`)
+in addition to `n7.actions.{agent_id}`. This allows `DecisionEngineService` to dispatch `isolate_host` actions
+without knowing the specific Striker ID.
+
+**JSON Fallback Parsing:** `ActionExecutorService.handle_action()` first attempts Protobuf deserialization;
+on failure it falls back to `json.loads(msg.data)` wrapped in an `_ActionDict` duck-type object to maintain
+a consistent interface.
+
+### 6.6 Active Rollback Manager
+
+The `RollbackManagerService` (previously a stub) now implements an in-memory ledger with automatic timed rollback:
+
+```python
+# Ledger entry structure
+{
+    "action_id": str,
+    "action_type": str,
+    "rollback_action_type": str,   # e.g., "unisolate_host"
+    "rollback_params": dict,
+    "registered_at": float,        # time.time()
+    "auto_rollback_at": float|None # registered_at + auto_rollback_seconds
+}
+```
+
+**Scheduler Loop:** Runs every 30 seconds. For each expired entry (`auto_rollback_at <= now`):
+1. Removes entry from ledger.
+2. Publishes rollback action JSON to `n7.actions.{settings.AGENT_ID}` NATS subject.
+3. ActionExecutorService receives and executes the undo action.
+
 ---
 
 ## 7. Communication Architecture
@@ -702,19 +914,36 @@ Rollback can be triggered:
 
 ```
 NATS Subjects:
-  n7.events.{sentinel_type}      → Event stream from Sentinels
-  n7.heartbeat.{agent_id}        → Agent heartbeat
-  n7.alerts                      → Alert notifications (internal)
-  n7.actions.{striker_id}        → Action dispatch to Strikers
-  n7.actions.status              → Action status updates from Strikers
-  n7.config.{agent_id}           → Configuration updates to agents
-  n7.audit                       → Audit log stream
+  n7.events.{sentinel_type}         → Event stream from Sentinels
+  n7.events.sentinel.deception      → Honeytoken access events from DeceptionEngineService
+  n7.heartbeat.{agent_id}           → Agent heartbeat
+  n7.internal.events                → Enriched events (EventPipeline → ThreatCorrelator)
+  n7.llm.analyze                    → Alert bundles for LLM narrative generation (ThreatCorrelator → LLMAnalyzer)
+  n7.alerts                         → Enriched alert notifications (LLMAnalyzer → DecisionEngine)
+  n7.actions.{striker_id}           → Action dispatch to specific Striker
+  n7.actions.broadcast              → Action broadcast to all capable Strikers (queue group: action_executor)
+  n7.actions.status                 → Action status updates from Strikers
+  n7.config.{agent_id}              → Configuration updates to agents
+  n7.audit                          → Audit log stream
 
 JetStream Streams:
   EVENTS     → Persistent event storage (subjects: n7.events.>)
   ACTIONS    → Persistent action tracking (subjects: n7.actions.>)
   AUDIT      → Persistent audit log (subjects: n7.audit)
 ```
+
+**Subject Ownership Table (v1.1):**
+
+| Subject | Publisher | Subscriber | Queue Group |
+|---|---|---|---|
+| `n7.events.>` | Sentinels | EventPipelineService | `event_pipeline` |
+| `n7.events.sentinel.deception` | DeceptionEngineService | EventPipelineService (wildcard) | `event_pipeline` |
+| `n7.internal.events` | EventPipelineService | ThreatCorrelatorService | `threat_correlator` |
+| `n7.llm.analyze` | ThreatCorrelatorService | LLMAnalyzerService | `llm_analyzer` |
+| `n7.alerts` | LLMAnalyzerService | DecisionEngineService | `decision_engine` |
+| `n7.actions.{agent_id}` | DecisionEngineService / RollbackManagerService | ActionExecutorService | — |
+| `n7.actions.broadcast` | DecisionEngineService | ActionExecutorService | `action_executor` |
+| `n7.actions.status` | ActionExecutorService | Core (future) | — |
 
 **Message Envelope:**
 
@@ -788,6 +1017,11 @@ Strikers reject any action that:
                    │ status      │    │ enabled     │
                    │ verdict     │    └──────┬──────┘
                    │ reasoning   │           │
+                   │ llm_narrative│   ┌──────▼──────┐
+                   │ llm_mitre_  │
+                   │  _tactic    │
+                   │ llm_mitre_  │
+                   │  _technique │
                    └──────┬──────┘    ┌──────▼──────┐
                           │           │  incidents  │
                    ┌──────▼──────┐    ├─────────────┤
@@ -813,7 +1047,29 @@ Strikers reject any action that:
                                       └─────────────┘
 ```
 
-### 8.2 Audit Log Hash Chain
+### 8.2 New Columns — alerts Table (Migration a1b2c3d4e5f6)
+
+The migration `a1b2c3d4e5f6` (chained from `eaef4f9fe2a1`) adds three nullable columns to the `alerts` table:
+
+| Column               | Type    | Nullable | Description                                      |
+|----------------------|---------|----------|--------------------------------------------------|
+| `llm_narrative`      | String  | Yes      | LLM-generated plain-English attack narrative     |
+| `llm_mitre_tactic`   | String  | Yes      | LLM-identified MITRE ATT&CK tactic identifier    |
+| `llm_mitre_technique`| String  | Yes      | LLM-identified MITRE ATT&CK technique identifier |
+
+These fields are populated **asynchronously** by `LLMAnalyzerService` after the Alert row is created by
+`ThreatCorrelatorService`. The pipeline is never blocked on LLM availability.
+
+### 8.3 Redis Key Patterns (Updated)
+
+| Key Pattern                        | Type   | TTL     | Description                                         |
+|------------------------------------|--------|---------|-----------------------------------------------------|
+| `n7:dedup:{hash}`                  | String | 60 s    | Event deduplication (existing)                      |
+| `n7:ioc:{type}:{value}`            | String | 86400 s | Threat intelligence IOC (feed-sourced)              |
+| `n7:ioc:{type}:{value}`            | String | 3600 s  | Threat intelligence IOC (manually added, default TTL) |
+| `n7:llm:narrative:{alert_id}`      | String | 3600 s  | Cached LLM narrative (prevents duplicate LLM calls) |
+
+### 8.4 Audit Log Hash Chain
 
 Audit logs are tamper-evident via hash chaining:
 
@@ -1209,3 +1465,12 @@ naga-7/
 - **Performance tests:** Load testing for event pipeline throughput, latency benchmarks.
 
 See [TEST_PLAN.md](./TEST_PLAN.md) for comprehensive test plan.
+
+---
+
+## 16. Revision History
+
+| Version | Date       | Author  | Changes                                                                                                                                                                          |
+|---------|------------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1.0.0   | 2026-02-17 | N7 Team | Initial release                                                                                                                                                                  |
+| 1.1.0   | 2026-02-19 | N7 Team | Added §4.6 LLMAnalyzerService (Ollama data flow, Redis caching, graceful degradation). Added §4.7 TIFetcherService (feed architecture, IOC promotion). Added §5.5 Deception Engine (watchdog/asyncio bridge, NATS subject). Added §6.5 NetworkIsolatorAction (iptables N7_QUARANTINE chain). Added §6.6 Active RollbackManager (ledger, 30s scheduler). Updated §7.1 NATS subject table. Added §8.2 alerts migration, §8.3 Redis key patterns. |

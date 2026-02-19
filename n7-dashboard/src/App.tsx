@@ -1,5 +1,6 @@
 import './App.css';
 import { AgentList } from './components/AgentList';
+import { AlertPanel } from './components/AlertPanel';
 import { EventStream } from './components/EventStream';
 import { NodeDeployment } from './components/NodeDeployment';
 import { Shield } from 'lucide-react';
@@ -26,6 +27,9 @@ function App() {
             <EventStream />
           </div>
           <div className="grid-item grid-item--full">
+            <AlertPanel />
+          </div>
+          <div className="grid-item grid-item--full">
             <NodeDeployment />
           </div>
         </div>
@@ -33,7 +37,7 @@ function App() {
 
       <footer className="app-footer">
         <div className="footer-content">
-          NAGA-7 Security Monitoring Platform v0.1.0
+          NAGA-7 Security Monitoring Platform v0.2.0
         </div>
       </footer>
     </div>
