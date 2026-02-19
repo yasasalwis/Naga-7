@@ -17,7 +17,7 @@ export function AgentList() {
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/agents/');
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/agents/`);
         setAgents(response.data);
       } catch (error) {
         console.error('Failed to fetch agents', error);

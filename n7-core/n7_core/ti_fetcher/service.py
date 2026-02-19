@@ -8,6 +8,7 @@ import httpx
 
 from ..service_manager.base_service import BaseService
 from ..threat_intel.service import ThreatIntelService
+from ..config import settings
 
 logger = logging.getLogger("n7-core.ti-fetcher")
 
@@ -36,7 +37,7 @@ TI_FEEDS = [
 ]
 
 _IP_PATTERN = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
-IOC_TTL = 86400  # 24-hour TTL for feed-sourced IOCs
+
 
 
 class TIFetcherService(BaseService):
@@ -54,7 +55,7 @@ class TIFetcherService(BaseService):
         self._running = False
         self._threat_intel = threat_intel_service
         self._http_client: Optional[httpx.AsyncClient] = None
-        self._fetch_interval: int = int(os.environ.get("TI_FETCH_INTERVAL", "3600"))
+        self._fetch_interval: int = settings.TI_FETCH_INTERVAL
         self._fetch_task: Optional[asyncio.Task] = None
 
     async def start(self):
@@ -107,7 +108,7 @@ class TIFetcherService(BaseService):
         """Download a single feed and dispatch to the appropriate parser."""
         headers = {}
         if feed.get("requires_auth"):
-            api_key = os.environ.get(feed["auth_env"], "")
+            api_key = getattr(settings, feed["auth_env"], "")
             if not api_key:
                 logger.warning(
                     f"Feed '{feed['name']}' requires auth but {feed['auth_env']} env var not set. Skipping."
@@ -160,7 +161,7 @@ class TIFetcherService(BaseService):
                     confidence=0.85,
                     source=f"feed:otx:{pulse_name}",
                     metadata={"pulse_id": pulse_id, "raw_type": raw_type},
-                    ttl=IOC_TTL,
+                    ttl=settings.TI_IOC_TTL,
                 )
                 count += 1
         return count
@@ -186,7 +187,7 @@ class TIFetcherService(BaseService):
                     confidence=0.90,
                     source="feed:urlhaus",
                     metadata={"threat_type": threat_type, "tags": tags, "date_added": date_added},
-                    ttl=IOC_TTL,
+                    ttl=settings.TI_IOC_TTL,
                 )
                 count += 1
 
@@ -200,7 +201,7 @@ class TIFetcherService(BaseService):
                     confidence=0.80,
                     source="feed:urlhaus",
                     metadata={"threat_type": threat_type},
-                    ttl=IOC_TTL,
+                    ttl=settings.TI_IOC_TTL,
                 )
                 count += 1
         return count
@@ -227,7 +228,7 @@ class TIFetcherService(BaseService):
                     "first_seen": entry.get("first_seen", ""),
                     "last_online": entry.get("last_online", ""),
                 },
-                ttl=IOC_TTL,
+                ttl=settings.TI_IOC_TTL,
             )
             count += 1
         return count

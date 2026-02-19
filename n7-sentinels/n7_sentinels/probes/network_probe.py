@@ -3,6 +3,8 @@ import logging
 import threading
 from typing import AsyncIterator, Dict, Any
 
+from ..config import settings
+
 from scapy.all import sniff, IP, TCP
 from scapy.layers.http import HTTPRequest
 
@@ -87,7 +89,7 @@ class NetworkProbe:
                         "dst": pkt[IP].dst,
                         "len": len(pkt)
                     },
-                    "sentinel_id": "network-sentinel-1"  # Mock
+                    "sentinel_id": settings.AGENT_ID
                 }
                 # We need to yield this. But we can't yield from callback.
                 # We push to queue.

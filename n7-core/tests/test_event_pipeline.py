@@ -1,5 +1,6 @@
 import pytest
 import datetime
+import uuid
 from n7_core.event_pipeline.service import EventPipelineService
 from schemas.events_pb2 import Event
 
@@ -11,7 +12,7 @@ async def test_event_parsing():
     event = Event(
         event_id="test-1",
         timestamp=datetime.datetime.utcnow().isoformat(),
-        sentinel_id="sentinel-1",
+        sentinel_id=str(uuid.uuid4()),
         event_class="process",
         severity="info",
         raw_data='{"pid": 123}'

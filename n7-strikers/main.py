@@ -1,7 +1,6 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'n7-core')))
 
 import asyncio
 import logging
@@ -10,7 +9,7 @@ from n7_strikers.action_executor.service import ActionExecutorService
 from n7_strikers.rollback_manager.service import RollbackManagerService
 from n7_strikers.evidence_collector.service import EvidenceCollectorService
 
-from n7_core.utils import print_banner
+from n7_strikers.utils import print_banner
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

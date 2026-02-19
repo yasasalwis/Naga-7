@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # NATS
-    NATS_URL: str = "nats://localhost:4222"
+    NATS_URL: str  # Required
 
     # Agent Identity
     AGENT_TYPE: str = "striker"
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     AGENT_ID: str = "striker-1"  # Should be dynamic/generated
     ZONE: str = "default"
 
-    CORE_API_URL: str = "http://localhost:8000/api"
+    CORE_API_URL: str  # Required
 
     # Authentication - Unique API key per agent instance
     API_KEY_FILE: str = ".agent_api_key"  # Local file to persist API key

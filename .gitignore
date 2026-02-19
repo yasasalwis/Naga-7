@@ -51,4 +51,4 @@ htmlcov/
 # Alembic
 *.pyc
 .naga7.pids
-.agent_api_key
+.agent_api_key.env

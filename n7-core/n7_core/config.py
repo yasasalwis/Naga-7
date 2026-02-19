@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     Application Configuration.
     Reads from environment variables and .env file.
     """
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 
     # Functionality
     ENVIRONMENT: Literal["development", "production", "testing"] = "development"
@@ -19,21 +19,21 @@ class Settings(BaseSettings):
     # API
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
-    SECRET_KEY: str = "changeme_in_production"
+    SECRET_KEY: str  # Required
 
     # Database
-    DATABASE_URL: PostgresDsn = "postgresql+asyncpg://n7user:n7password@localhost:5432/n7"
+    DATABASE_URL: PostgresDsn  # Required
 
     # Message Bus (NATS)
-    NATS_URL: str = "nats://localhost:4222"
+    NATS_URL: str  # Required
     NATS_CLUSTER_ID: str = "n7-cluster"
     NATS_CLIENT_ID: str = "n7-core-1"
 
     # Redis (Cache)
-    REDIS_URL: RedisDsn = "redis://localhost:6379/0"
+    REDIS_URL: RedisDsn  # Required
 
     # LLM Analyzer (Ollama — runs locally for on-premise data security)
-    OLLAMA_URL: str = "http://localhost:11434"
+    OLLAMA_URL: str  # Required
     OLLAMA_MODEL: str = "llama3"
 
     # Threat Intelligence Feed Ingestion

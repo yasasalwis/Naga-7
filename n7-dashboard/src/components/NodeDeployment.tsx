@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './NodeDeployment.css';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = `${import.meta.env.VITE_API_URL}/api`;
 
 interface InfraNode {
   id: string;
@@ -28,43 +28,43 @@ const defaultDeployConfig = {
   zone: 'default',
   ssh_username: '',
   ssh_password: '',
-  core_api_url: 'http://localhost:8000/api',
+  core_api_url: `${import.meta.env.VITE_API_URL}/api`,
   nats_url: 'nats://localhost:4222',
 };
 
 function statusBadgeClass(status: string): string {
   switch (status) {
-    case 'success':    return 'nd-badge nd-badge--success';
-    case 'failed':     return 'nd-badge nd-badge--failed';
+    case 'success': return 'nd-badge nd-badge--success';
+    case 'failed': return 'nd-badge nd-badge--failed';
     case 'in_progress':
-    case 'pending':    return 'nd-badge nd-badge--pending';
-    default:           return 'nd-badge nd-badge--none';
+    case 'pending': return 'nd-badge nd-badge--pending';
+    default: return 'nd-badge nd-badge--none';
   }
 }
 
 function osIcon(os: string | null): string {
   switch (os) {
-    case 'linux':   return '🐧';
-    case 'macos':   return '🍎';
+    case 'linux': return '🐧';
+    case 'macos': return '🍎';
     case 'windows': return '🪟';
-    default:        return '💻';
+    default: return '💻';
   }
 }
 
 export function NodeDeployment() {
-  const [nodes, setNodes]               = useState<InfraNode[]>([]);
-  const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set());
-  const [scanning, setScanning]         = useState(false);
-  const [scanCidr, setScanCidr]         = useState('192.168.1.0/24');
-  const [scanMethod, setScanMethod]     = useState<'ping' | 'nmap'>('ping');
+  const [nodes, setNodes] = useState<InfraNode[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [scanning, setScanning] = useState(false);
+  const [scanCidr, setScanCidr] = useState('192.168.1.0/24');
+  const [scanMethod, setScanMethod] = useState<'ping' | 'nmap'>('ping');
   const [showManualAdd, setShowManualAdd] = useState(false);
-  const [manualIp, setManualIp]         = useState('');
-  const [manualMac, setManualMac]       = useState('');
-  const [manualOs, setManualOs]         = useState<'linux' | 'macos' | 'windows' | 'unknown'>('linux');
+  const [manualIp, setManualIp] = useState('');
+  const [manualMac, setManualMac] = useState('');
+  const [manualOs, setManualOs] = useState<'linux' | 'macos' | 'windows' | 'unknown'>('linux');
   const [deployModalOpen, setDeployModalOpen] = useState(false);
   const [deployConfig, setDeployConfig] = useState(defaultDeployConfig);
-  const [error, setError]               = useState<string | null>(null);
-  const [deploying, setDeploying]       = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deploying, setDeploying] = useState(false);
 
   // ── Polling ──────────────────────────────────────────────────────────
   const fetchNodes = useCallback(async () => {
@@ -97,7 +97,7 @@ export function NodeDeployment() {
     }
   };
 
-  const allSelected  = nodes.length > 0 && selectedIds.size === nodes.length;
+  const allSelected = nodes.length > 0 && selectedIds.size === nodes.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < nodes.length;
 
   // ── Scan ──────────────────────────────────────────────────────────────
@@ -124,9 +124,9 @@ export function NodeDeployment() {
     setError(null);
     try {
       await axios.post(`${API_BASE}/deployment/nodes`, {
-        ip_address:  manualIp.trim(),
+        ip_address: manualIp.trim(),
         mac_address: manualMac.trim() || undefined,
-        os_type:     manualOs,
+        os_type: manualOs,
       });
       setManualIp('');
       setManualMac('');
@@ -156,13 +156,13 @@ export function NodeDeployment() {
       await Promise.all(
         targets.map(node =>
           axios.post(`${API_BASE}/deployment/nodes/${node.id}/deploy`, {
-            agent_type:    deployConfig.agent_type,
+            agent_type: deployConfig.agent_type,
             agent_subtype: deployConfig.agent_subtype,
-            zone:          deployConfig.zone,
-            core_api_url:  deployConfig.core_api_url,
-            nats_url:      deployConfig.nats_url,
-            ssh_username:  deployConfig.ssh_username || undefined,
-            ssh_password:  deployConfig.ssh_password || undefined,
+            zone: deployConfig.zone,
+            core_api_url: deployConfig.core_api_url,
+            nats_url: deployConfig.nats_url,
+            ssh_username: deployConfig.ssh_username || undefined,
+            ssh_password: deployConfig.ssh_password || undefined,
           })
         )
       );
@@ -191,9 +191,9 @@ export function NodeDeployment() {
         <div className="nd-title">
           {/* monitor icon */}
           <svg className="nd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="3" width="20" height="14" rx="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
           </svg>
           Node Deployment
         </div>
@@ -217,16 +217,16 @@ export function NodeDeployment() {
           </select>
           <button className="nd-btn nd-btn--primary" onClick={handleScan} disabled={scanning}>
             {scanning
-              ? <span className="nd-spinner"/>
+              ? <span className="nd-spinner" />
               : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>}
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>}
             {scanning ? 'Scanning…' : 'Scan Network'}
           </button>
           <button className="nd-btn nd-btn--secondary"
             onClick={() => setShowManualAdd(s => !s)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             Add Host
           </button>
@@ -245,7 +245,7 @@ export function NodeDeployment() {
             title={selectedIds.size === 0 ? 'Select at least one node' : ''}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-              <polygon points="5 3 19 12 5 21 5 3"/>
+              <polygon points="5 3 19 12 5 21 5 3" />
             </svg>
             Deploy to Selected ({selectedIds.size})
           </button>
@@ -258,10 +258,10 @@ export function NodeDeployment() {
           <input className="nd-input" value={manualIp}
             onChange={e => setManualIp(e.target.value)}
             placeholder="IP address  e.g. 10.0.0.5"
-            onKeyDown={e => e.key === 'Enter' && handleManualAdd()}/>
+            onKeyDown={e => e.key === 'Enter' && handleManualAdd()} />
           <input className="nd-input nd-input--mac" value={manualMac}
             onChange={e => setManualMac(e.target.value)}
-            placeholder="MAC  e.g. AA:BB:CC:DD:EE:FF (optional)"/>
+            placeholder="MAC  e.g. AA:BB:CC:DD:EE:FF (optional)" />
           <select className="nd-select" value={manualOs}
             onChange={e => setManualOs(e.target.value as typeof manualOs)}>
             <option value="linux">Linux</option>
@@ -286,9 +286,9 @@ export function NodeDeployment() {
       {nodes.length === 0 ? (
         <div className="nd-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="44" height="44">
-            <rect x="2" y="3" width="20" height="14" rx="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
           </svg>
           <p>No nodes discovered.</p>
           <p className="nd-empty-hint">Run a scan or add a host manually.</p>
@@ -413,7 +413,7 @@ export function NodeDeployment() {
                     <label key={t} className={`nd-radio-card ${deployConfig.agent_type === t ? 'nd-radio-card--active' : ''}`}>
                       <input type="radio" name="agent_type" value={t}
                         checked={deployConfig.agent_type === t}
-                        onChange={() => setDeployConfig(s => ({ ...s, agent_type: t }))}/>
+                        onChange={() => setDeployConfig(s => ({ ...s, agent_type: t }))} />
                       <span className="nd-radio-label">
                         {t === 'sentinel' ? '🛡 Sentinel' : '⚡ Striker'}
                       </span>
@@ -429,16 +429,16 @@ export function NodeDeployment() {
                 <div className="nd-field">
                   <label>Subtype</label>
                   <input className="nd-input" value={deployConfig.agent_subtype}
-                    onChange={e => setDeployConfig(s => ({ ...s, agent_subtype: e.target.value }))}/>
+                    onChange={e => setDeployConfig(s => ({ ...s, agent_subtype: e.target.value }))} />
                 </div>
                 <div className="nd-field">
                   <label>Zone</label>
                   <input className="nd-input" value={deployConfig.zone}
-                    onChange={e => setDeployConfig(s => ({ ...s, zone: e.target.value }))}/>
+                    onChange={e => setDeployConfig(s => ({ ...s, zone: e.target.value }))} />
                 </div>
               </div>
 
-              <div className="nd-modal-divider"/>
+              <div className="nd-modal-divider" />
               <p className="nd-modal-section-label">SSH Credentials</p>
 
               <div className="nd-field-row">
@@ -446,28 +446,28 @@ export function NodeDeployment() {
                   <label>Username</label>
                   <input className="nd-input" value={deployConfig.ssh_username}
                     onChange={e => setDeployConfig(s => ({ ...s, ssh_username: e.target.value }))}
-                    autoComplete="username"/>
+                    autoComplete="username" />
                 </div>
                 <div className="nd-field">
                   <label>Password</label>
                   <input className="nd-input" type="password" value={deployConfig.ssh_password}
                     onChange={e => setDeployConfig(s => ({ ...s, ssh_password: e.target.value }))}
-                    autoComplete="current-password"/>
+                    autoComplete="current-password" />
                 </div>
               </div>
 
-              <div className="nd-modal-divider"/>
+              <div className="nd-modal-divider" />
               <p className="nd-modal-section-label">Connection</p>
 
               <div className="nd-field">
                 <label>Core API URL</label>
                 <input className="nd-input" value={deployConfig.core_api_url}
-                  onChange={e => setDeployConfig(s => ({ ...s, core_api_url: e.target.value }))}/>
+                  onChange={e => setDeployConfig(s => ({ ...s, core_api_url: e.target.value }))} />
               </div>
               <div className="nd-field">
                 <label>NATS URL</label>
                 <input className="nd-input" value={deployConfig.nats_url}
-                  onChange={e => setDeployConfig(s => ({ ...s, nats_url: e.target.value }))}/>
+                  onChange={e => setDeployConfig(s => ({ ...s, nats_url: e.target.value }))} />
               </div>
             </div>
 
@@ -477,7 +477,7 @@ export function NodeDeployment() {
                 Cancel
               </button>
               <button className="nd-btn nd-btn--primary" onClick={handleDeploy} disabled={deploying}>
-                {deploying ? <><span className="nd-spinner nd-spinner--dark"/>Deploying…</> : `Deploy to ${selectedIds.size} host${selectedIds.size !== 1 ? 's' : ''}`}
+                {deploying ? <><span className="nd-spinner nd-spinner--dark" />Deploying…</> : `Deploy to ${selectedIds.size} host${selectedIds.size !== 1 ? 's' : ''}`}
               </button>
             </div>
           </div>

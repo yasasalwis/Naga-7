@@ -29,15 +29,15 @@ interface Alert {
     llm_mitre_technique: string | null;
 }
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL;
 
 function getSeverityClass(severity: string): string {
     switch (severity?.toLowerCase()) {
         case 'critical': return 'severity-critical';
-        case 'high':     return 'severity-high';
-        case 'medium':   return 'severity-medium';
-        case 'low':      return 'severity-low';
-        default:         return 'severity-medium';
+        case 'high': return 'severity-high';
+        case 'medium': return 'severity-medium';
+        case 'low': return 'severity-low';
+        default: return 'severity-medium';
     }
 }
 
