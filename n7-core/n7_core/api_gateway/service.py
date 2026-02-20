@@ -7,6 +7,7 @@ from uvicorn import Config, Server
 
 # Import Routers
 from .routers import auth, users, agents, events, deployment, alerts, threat_intel
+from .routers import agent_config
 from ..config import settings
 from ..service_manager.base_service import BaseService
 
@@ -30,6 +31,7 @@ app.include_router(events.router, prefix="/api/v1/events", tags=["Events"])
 app.include_router(deployment.router, prefix="/api/v1/deployment", tags=["Deployment"])
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])
 app.include_router(threat_intel.router, prefix="/api/v1/threat-intel", tags=["Threat Intelligence"])
+app.include_router(agent_config.router, prefix="/api/v1/agents", tags=["Agent Config"])
 
 
 @app.get("/health")

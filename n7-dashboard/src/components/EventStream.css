@@ -84,6 +84,13 @@
     color: var(--accent-primary);
 }
 
+.event-stream-empty {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    text-align: center;
+    padding: var(--space-md);
+}
+
 .event-data {
     background-color: #000;
     color: var(--text-secondary);

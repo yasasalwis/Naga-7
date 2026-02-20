@@ -43,3 +43,38 @@ class NetworkBlockAction:
         except Exception as e:
             logger.error(f"Failed to block {target}: {e}")
             return {"status": "failed", "reason": str(e)}
+
+
+class NetworkUnblockAction:
+    def __init__(self):
+        self.action_type = "network_unblock"
+        self._iptables = shutil.which("iptables")
+
+    async def execute(self, params: dict) -> dict:
+        """
+        Removes an iptables INPUT DROP rule for a previously blocked IP.
+        params: {"target": str}
+        """
+        target = params.get("target")
+        if not target:
+            return {"success": False, "reason": "No target specified"}
+
+        logger.info(f"Executing network_unblock on {target}")
+
+        if not self._iptables:
+            logger.warning("iptables not found, simulating action")
+            return {"success": True, "simulated": True}
+
+        try:
+            check_cmd = [self._iptables, "-C", "INPUT", "-s", target, "-j", "DROP"]
+            ret = subprocess.call(check_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if ret != 0:
+                return {"success": True, "reason": "Rule not present, nothing to remove"}
+
+            cmd = [self._iptables, "-D", "INPUT", "-s", target, "-j", "DROP"]
+            subprocess.check_call(cmd)
+            logger.info(f"Unblocked {target} via iptables")
+            return {"success": True}
+        except Exception as e:
+            logger.error(f"Failed to unblock {target}: {e}")
+            return {"success": False, "reason": str(e)}

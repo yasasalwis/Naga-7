@@ -10,6 +10,7 @@ import asyncssh
 from icmplib import async_ping
 from sqlalchemy import select
 
+from ..config_sync.service import ConfigSyncService
 from ..database.session import async_session_maker
 from ..models.infra_node import InfraNode
 from ..service_manager.base_service import BaseService
@@ -58,6 +59,7 @@ class DeploymentService(BaseService):
         super().__init__("DeploymentService")
         from cryptography.fernet import Fernet
         self._fernet = Fernet(_derive_fernet_key(settings.SECRET_KEY))
+        self._config_sync = ConfigSyncService()
 
     async def start(self):
         logger.info("DeploymentService started.")
@@ -219,6 +221,27 @@ class DeploymentService(BaseService):
                 node.deployed_agent_type = agent_type
                 node.status = "deployed"
 
+                # Provision centralized config in DB so the agent can pull it on startup
+                if node.deployed_agent_id:
+                    try:
+                        from uuid import UUID as _UUID
+                        capabilities = (
+                            ["system_probe", "file_integrity"] if agent_type == "sentinel"
+                            else ["kill_process", "block_ip", "isolate_host", "unisolate_host"]
+                        )
+                        await self._config_sync.provision_agent_config(
+                            agent_id=_UUID(node.deployed_agent_id),
+                            nats_url=nats_url,
+                            core_api_url=core_api_url,
+                            zone=zone,
+                            capabilities=capabilities,
+                        )
+                    except Exception as cfg_err:
+                        logger.warning(
+                            f"Config provisioning failed for {node.ip_address}: {cfg_err} "
+                            "(agent will use bootstrap .env until config is provisioned manually)"
+                        )
+
             except Exception as e:
                 logger.error(f"Deployment failed for {node.ip_address}: {e}")
                 node.deployment_status = "failed"
@@ -245,13 +268,12 @@ class DeploymentService(BaseService):
         install_dir = f"/opt/n7/{agent_type}"
         service_name = f"n7-{agent_type}"
 
+        # Minimal bootstrap .env — only what the agent needs to call /api/v1/agents/{id}/config.
+        # All other config (NATS_URL, zone, thresholds, etc.) is pulled from Core DB on startup.
         env_contents = (
+            f"CORE_API_URL={core_api_url}\n"
             f"AGENT_TYPE={agent_type}\n"
             f"AGENT_SUBTYPE={agent_subtype}\n"
-            f"ZONE={zone}\n"
-            f"CORE_API_URL={core_api_url}\n"
-            f"NATS_URL={nats_url}\n"
-            f"LOG_LEVEL=INFO\n"
         )
 
         systemd_unit = f"""[Unit]
@@ -346,14 +368,12 @@ WantedBy=multi-user.target
             f'New-Item -ItemType Directory -Force -Path "{install_dir}"',
             f'python -m venv "{install_dir}\\venv"',
             f'& "{install_dir}\\venv\\Scripts\\pip" install --quiet {repo_package}',
+            # Minimal bootstrap .env — agent pulls full config from Core DB on startup
             (
                 f'Set-Content -Path "{install_dir}\\.env" -Value '
-                f'"AGENT_TYPE={agent_type}`n'
-                f'AGENT_SUBTYPE={agent_subtype}`n'
-                f'ZONE={zone}`n'
-                f'CORE_API_URL={core_api_url}`n'
-                f'NATS_URL={nats_url}`n'
-                f'LOG_LEVEL=INFO"'
+                f'"CORE_API_URL={core_api_url}`n'
+                f'AGENT_TYPE={agent_type}`n'
+                f'AGENT_SUBTYPE={agent_subtype}`n"'
             ),
             f'nssm install {service_name} "{install_dir}\\venv\\Scripts\\python" "-m {module_name}"',
             f'nssm set {service_name} AppDirectory "{install_dir}"',

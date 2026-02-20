@@ -8,6 +8,7 @@ import aiohttp
 
 from .config import settings
 from .graph import build_sentinel_graph, AgentState
+from ..config_loader import fetch_remote_config
 
 logger = logging.getLogger("n7-sentinel.agent-runtime")
 
@@ -36,6 +37,9 @@ class AgentRuntimeService:
 
         # Authenticate with Core
         await self._authenticate()
+
+        # Pull centralized config from Core DB and apply it
+        await self._apply_remote_config()
 
         # Build Graph
         self._graph = build_sentinel_graph()
@@ -104,6 +108,41 @@ class AgentRuntimeService:
                 logger.error(f"Error in Agent Graph Loop: {e}")
 
             await asyncio.sleep(10)  # Run every 10 seconds
+
+    async def _apply_remote_config(self):
+        """
+        Pull centralized config from Core DB and override in-memory settings values.
+        Gracefully degrades — on any failure the agent continues with its bootstrap .env.
+        """
+        if not self._agent_id:
+            logger.warning("Cannot fetch remote config: agent_id not yet assigned.")
+            return
+
+        remote = await fetch_remote_config(
+            core_api_url=settings.CORE_API_URL,
+            agent_id=self._agent_id,
+            api_key=self._api_key,
+            session=self._session,
+        )
+        if remote is None:
+            logger.info("Continuing with bootstrap .env configuration.")
+            return
+
+        # Apply decrypted values to live settings
+        if remote.get("nats_url"):
+            settings.NATS_URL = remote["nats_url"]
+        if remote.get("core_api_url"):
+            settings.CORE_API_URL = remote["core_api_url"]
+        if remote.get("log_level"):
+            settings.LOG_LEVEL = remote["log_level"]
+            logging.getLogger().setLevel(remote["log_level"])
+        if remote.get("zone"):
+            settings.ZONE = remote["zone"]
+
+        logger.info(
+            f"Applied remote config version {remote.get('config_version', '?')} "
+            f"(zone={settings.ZONE}, nats={settings.NATS_URL})"
+        )
 
     async def _authenticate(self):
         """

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, Any, List
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Event(BaseModel):
@@ -10,6 +10,8 @@ class Event(BaseModel):
     Standardized Event Model.
     Ref: TDD Section 9.1.1 Event Data Model
     """
+    model_config = ConfigDict(from_attributes=True)
+
     event_id: UUID = Field(default_factory=uuid4)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     sentinel_id: UUID

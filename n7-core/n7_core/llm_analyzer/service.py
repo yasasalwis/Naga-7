@@ -6,6 +6,7 @@ from typing import Optional
 
 import httpx
 
+from ..config import settings
 from ..database.redis import redis_client
 from ..database.session import async_session_maker
 from ..messaging.nats_client import nats_client
@@ -43,21 +44,12 @@ class LLMAnalyzerService(BaseService):
         super().__init__("LLMAnalyzerService")
         self._running = False
         self._http_client: Optional[httpx.AsyncClient] = None
-        self._ollama_url: str = "http://localhost:11434"
-        self._ollama_model: str = "llama3"
+        self._ollama_url: str = settings.OLLAMA_URL
+        self._ollama_model: str = settings.OLLAMA_MODEL
         self._cache_ttl: int = 3600  # Redis cache for LLM results
 
     async def start(self):
         self._running = True
-
-        # Pull config from settings if available
-        try:
-            from ..config import settings
-            self._ollama_url = getattr(settings, "OLLAMA_URL", self._ollama_url)
-            self._ollama_model = getattr(settings, "OLLAMA_MODEL", self._ollama_model)
-        except Exception:
-            pass
-
         self._http_client = httpx.AsyncClient(timeout=60.0)
         logger.info(
             f"LLMAnalyzerService started. Ollama: {self._ollama_url}, model: {self._ollama_model}"

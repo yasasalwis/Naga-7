@@ -24,17 +24,20 @@ async def main():
     print_banner("N7-Striker")
     logger.info("Starting N7-Striker...")
     
-    # Initialize Services
-    agent_runtime = AgentRuntimeService()
-    action_executor = ActionExecutorService()
+    # Initialize Services (rollback_manager and evidence_collector injected into action_executor)
     rollback_manager = RollbackManagerService()
     evidence_collector = EvidenceCollectorService()
-    
+    agent_runtime = AgentRuntimeService()
+    action_executor = ActionExecutorService(
+        rollback_manager=rollback_manager,
+        evidence_collector=evidence_collector,
+    )
+
     # Start Services
-    await agent_runtime.start()
-    await action_executor.start()
     await rollback_manager.start()
     await evidence_collector.start()
+    await agent_runtime.start()
+    await action_executor.start()
     
     try:
         while True:

@@ -5,7 +5,9 @@ from datetime import datetime
 
 # Protobuf schemas generated successfully
 from schemas.alerts_pb2 import Alert as ProtoAlert
+from ..database.session import async_session_maker
 from ..messaging.nats_client import nats_client
+from ..models.action import Action as ActionModel
 from ..service_manager.base_service import BaseService
 
 logger = logging.getLogger("n7-core.decision-engine")
@@ -32,6 +34,13 @@ class DecisionEngineService(BaseService):
                 queue="decision_engine"
             )
             logger.info("Subscribed to n7.alerts")
+
+            await nats_client.nc.subscribe(
+                "n7.actions.status",
+                cb=self.handle_action_status,
+                queue="decision_engine_action_status"
+            )
+            logger.info("Subscribed to n7.actions.status")
         else:
             logger.warning("NATS not connected, DecisionEngineService waiting...")
 
@@ -105,3 +114,83 @@ class DecisionEngineService(BaseService):
 
         except Exception as e:
             logger.error(f"Error processing alert: {e}", exc_info=True)
+
+    async def handle_action_status(self, msg):
+        """
+        Receive action completion reports from Strikers on n7.actions.status.
+        Persists the final status, result, and forensic evidence into the actions table.
+        """
+        try:
+            # Try JSON (primary format); Protobuf actions have result_data as a JSON string
+            try:
+                data = json.loads(msg.data.decode())
+            except Exception:
+                # Fallback: Protobuf serialized — try to parse action_id and status from ProtoAction
+                try:
+                    from schemas.actions_pb2 import Action as ProtoAction
+                    pa = ProtoAction()
+                    pa.ParseFromString(msg.data)
+                    result_raw = pa.result_data or "{}"
+                    inner = json.loads(result_raw)
+                    data = {
+                        "action_id": pa.action_id,
+                        "striker_id": pa.striker_id,
+                        "action_type": pa.action_type,
+                        "status": pa.status,
+                        "result_data": inner.get("result", {}),
+                        "evidence": inner.get("evidence", {}),
+                    }
+                except Exception:
+                    logger.error("handle_action_status: could not decode message", exc_info=True)
+                    return
+
+            action_id_str = data.get("action_id")
+            if not action_id_str:
+                logger.warning("handle_action_status: missing action_id in payload")
+                return
+
+            status = data.get("status", "unknown")
+            result_data = data.get("result_data", {})
+            evidence = data.get("evidence", {})
+
+            logger.info(f"Action status received: {action_id_str} → {status}")
+
+            async with async_session_maker() as session:
+                from sqlalchemy import select
+                result = await session.execute(
+                    select(ActionModel).where(
+                        ActionModel.action_id == uuid.UUID(action_id_str)
+                    )
+                )
+                action = result.scalar_one_or_none()
+
+                if action is None:
+                    # Action was dispatched without a prior DB row (decision engine auto-dispatch).
+                    # Create a record now from the status report.
+                    action = ActionModel(
+                        action_id=uuid.UUID(action_id_str),
+                        action_type=data.get("action_type", "unknown"),
+                        status=status,
+                        initiated_by="auto",
+                        parameters={},
+                        evidence=evidence,
+                        rollback_entry={},
+                    )
+                    session.add(action)
+                    logger.info(f"Created action record from status report for {action_id_str}")
+                else:
+                    action.status = status
+                    if evidence:
+                        action.evidence = evidence
+                    if result_data:
+                        # Merge result data into rollback_entry field (already a JSON blob)
+                        action.rollback_entry = {
+                            **(action.rollback_entry or {}),
+                            "execution_result": result_data,
+                        }
+
+                await session.commit()
+                logger.debug(f"Persisted action status for {action_id_str}: {status}")
+
+        except Exception as e:
+            logger.error(f"Error processing action status: {e}", exc_info=True)

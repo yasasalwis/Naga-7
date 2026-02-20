@@ -2,9 +2,12 @@ import json
 import logging
 
 from ..actions.kill_process import KillProcessAction
+from ..actions.network_block import NetworkBlockAction, NetworkUnblockAction
 from ..actions.network_isolator import NetworkIsolatorAction, NetworkUnisolatorAction
 from ..config import settings
+from ..evidence_collector.service import EvidenceCollectorService
 from ..messaging.nats_client import nats_client
+from ..rollback_manager.service import RollbackManagerService
 
 try:
     from schemas.actions_pb2 import Action as ProtoAction
@@ -12,6 +15,13 @@ except ImportError:
     ProtoAction = None
 
 logger = logging.getLogger("n7-striker.action-executor")
+
+# Maps action_type -> (rollback_action_type, auto_rollback_seconds)
+# None means no auto-rollback (manual only or irreversible)
+_ROLLBACK_MAP = {
+    "isolate_host": ("unisolate_host", None),   # never auto-undo isolation — requires operator review
+    "network_block": ("network_unblock", 3600),  # auto-unblock after 1 hour
+}
 
 
 class _ActionDict:
@@ -29,13 +39,23 @@ class _ActionDict:
 class ActionExecutorService:
     """
     Action Executor Service.
-    Responsibility: Receive actions from Core and execute them.
+    Responsibility: Receive actions from Core, collect pre/post forensic evidence,
+    execute the action, register rollback entries, and report full status + evidence
+    back to Core via n7.actions.status.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        rollback_manager: RollbackManagerService,
+        evidence_collector: EvidenceCollectorService,
+    ):
         self._running = False
+        self._rollback_manager = rollback_manager
+        self._evidence_collector = evidence_collector
         self.actions = {
             "kill_process": KillProcessAction(),
+            "network_block": NetworkBlockAction(),
+            "network_unblock": NetworkUnblockAction(),
             "isolate_host": NetworkIsolatorAction(),
             "unisolate_host": NetworkUnisolatorAction(),
         }
@@ -45,15 +65,10 @@ class ActionExecutorService:
         logger.info("ActionExecutorService started.")
 
         if nats_client.nc.is_connected:
-            # Subscribe to agent-specific action subject
             subject = f"n7.actions.{settings.AGENT_ID}"
-            await nats_client.nc.subscribe(
-                subject,
-                cb=self.handle_action
-            )
+            await nats_client.nc.subscribe(subject, cb=self.handle_action)
             logger.info(f"Subscribed to {subject}")
 
-            # Subscribe to broadcast subject (for Core dispatching without a specific agent ID)
             await nats_client.nc.subscribe(
                 "n7.actions.broadcast",
                 cb=self.handle_action,
@@ -68,14 +83,13 @@ class ActionExecutorService:
         logger.info("ActionExecutorService stopped.")
 
     async def handle_action(self, msg):
+        proto_action = None
         try:
-            # Try Protobuf first; fall back to JSON for actions dispatched as plain JSON
-            proto_action = None
+            # Parse: try Protobuf first, fall back to JSON
             if ProtoAction is not None:
                 try:
                     _pa = ProtoAction()
                     _pa.ParseFromString(msg.data)
-                    # Basic sanity check: Protobuf decode can silently succeed on JSON bytes
                     if _pa.action_type:
                         proto_action = _pa
                 except Exception:
@@ -85,51 +99,88 @@ class ActionExecutorService:
                 data = json.loads(msg.data.decode())
                 proto_action = _ActionDict(data)
 
-            logger.info(f"Received action: {proto_action.action_id} type={proto_action.action_type}")
+            action_id = proto_action.action_id
+            action_type = proto_action.action_type
+            logger.info(f"Received action: {action_id} type={action_type}")
 
-            action_handler = self.actions.get(proto_action.action_type)
+            action_handler = self.actions.get(action_type)
             if not action_handler:
-                logger.error(f"Unknown action type: {proto_action.action_type}")
+                logger.error(f"Unknown action type: {action_type}")
                 return
 
-            # Parse parameters
             try:
                 params = json.loads(proto_action.parameters)
-            except:
+            except Exception:
                 params = {}
 
-            # Execute
-            result = await action_handler.execute(params)
-            logger.info(f"Action execution result: {result}")
+            # --- Pre-action forensic evidence ---
+            pre_evidence = await self._evidence_collector.collect_pre_action(
+                action_id=action_id,
+                action_type=action_type,
+                params=params,
+            )
 
-            # Report status back to Core
+            # --- Execute action ---
+            result = await action_handler.execute(params)
+            logger.info(f"Action result: {result}")
+
+            # --- Post-action forensic evidence ---
+            post_evidence = await self._evidence_collector.collect_post_action(
+                action_id=action_id,
+                action_type=action_type,
+                result=result,
+            )
+
+            # --- Register rollback for reversible actions ---
+            if action_type in _ROLLBACK_MAP:
+                rollback_type, auto_seconds = _ROLLBACK_MAP[action_type]
+                rollback_params = dict(params)
+                rollback_params["original_action_id"] = action_id
+                self._rollback_manager.register_rollback(
+                    action_id=action_id,
+                    action_type=action_type,
+                    rollback_action_type=rollback_type,
+                    rollback_params=rollback_params,
+                    auto_rollback_seconds=auto_seconds,
+                )
+
+            # --- Report status + evidence to Core ---
+            succeeded = result.get("success", result.get("status") == "succeeded")
+            status_str = "completed" if succeeded else "failed"
+            combined_evidence = {"pre": pre_evidence, "post": post_evidence}
+
             if nats_client.nc.is_connected:
                 if ProtoAction is not None and not isinstance(proto_action, _ActionDict):
                     status_update = ProtoAction()
-                    status_update.action_id = proto_action.action_id
+                    status_update.action_id = action_id
                     status_update.incident_id = proto_action.incident_id
                     status_update.striker_id = settings.AGENT_ID
-                    status_update.action_type = proto_action.action_type
-                    status_update.status = "completed" if result.get("success", False) else "failed"
-                    status_update.result_data = json.dumps(result)
+                    status_update.action_type = action_type
+                    status_update.status = status_str
+                    status_update.result_data = json.dumps({
+                        "result": result,
+                        "evidence": combined_evidence,
+                    })
                     await nats_client.nc.publish("n7.actions.status", status_update.SerializeToString())
                 else:
                     status_payload = json.dumps({
-                        "action_id": proto_action.action_id,
+                        "action_id": action_id,
                         "striker_id": settings.AGENT_ID,
-                        "action_type": proto_action.action_type,
-                        "status": "completed" if result.get("success", False) else "failed",
+                        "action_type": action_type,
+                        "status": status_str,
                         "result_data": result,
+                        "evidence": combined_evidence,
                     }).encode()
                     await nats_client.nc.publish("n7.actions.status", status_payload)
-                logger.info(f"Reported status for action {proto_action.action_id}")
+
+                logger.info(f"Reported status '{status_str}' for action {action_id}")
             else:
-                logger.warning("NATS not connected. Could not report status.")
+                logger.warning("NATS not connected — could not report action status.")
 
         except Exception as e:
-            logger.error(f"Error processing action: {e}")
+            logger.error(f"Error processing action: {e}", exc_info=True)
             try:
-                if 'proto_action' in locals() and nats_client.nc.is_connected:
+                if proto_action is not None and nats_client.nc.is_connected:
                     error_payload = json.dumps({
                         "action_id": getattr(proto_action, "action_id", "unknown"),
                         "status": "error",

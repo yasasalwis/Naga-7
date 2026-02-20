@@ -3,6 +3,8 @@ import axios from 'axios';
 import { Activity } from 'lucide-react';
 import './EventStream.css';
 
+type FetchStatus = 'loading' | 'ok' | 'error';
+
 interface Event {
     event_id: string;
     timestamp: string;
@@ -13,14 +15,17 @@ interface Event {
 
 export function EventStream() {
     const [events, setEvents] = useState<Event[]>([]);
+    const [status, setStatus] = useState<FetchStatus>('loading');
 
     useEffect(() => {
         const fetchEvents = async () => {
             try {
                 const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/events/`);
                 setEvents(response.data);
+                setStatus('ok');
             } catch (error) {
                 console.error('Failed to fetch events', error);
+                setStatus('error');
             }
         };
 
@@ -45,6 +50,9 @@ export function EventStream() {
                 Event Stream
             </h2>
             <div className="event-list">
+                {status === 'loading' && <p className="event-stream-empty">Loading events…</p>}
+                {status === 'error' && <p className="event-stream-empty">Failed to load events. Check API connectivity.</p>}
+                {status === 'ok' && events.length === 0 && <p className="event-stream-empty">No events received yet.</p>}
                 {events.map((evt) => (
                     <div key={evt.event_id} className="event-item">
                         <div className="event-meta">
