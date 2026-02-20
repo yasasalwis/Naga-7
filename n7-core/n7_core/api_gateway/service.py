@@ -23,13 +23,13 @@ app.add_middleware(
 )
 
 # Include Routers
-app.include_router(auth.router, prefix="/api")
-app.include_router(users.router, prefix="/api")
-app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
-app.include_router(events.router, prefix="/api/events", tags=["Events"])
-app.include_router(deployment.router, prefix="/api/deployment", tags=["Deployment"])
-app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
-app.include_router(threat_intel.router, prefix="/api/threat-intel", tags=["Threat Intelligence"])
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
+app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agents"])
+app.include_router(events.router, prefix="/api/v1/events", tags=["Events"])
+app.include_router(deployment.router, prefix="/api/v1/deployment", tags=["Deployment"])
+app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])
+app.include_router(threat_intel.router, prefix="/api/v1/threat-intel", tags=["Threat Intelligence"])
 
 
 @app.get("/health")

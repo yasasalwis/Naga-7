@@ -28,20 +28,20 @@ async def test_auth_flow():
     async with AsyncClient(transport=ASGITransport(app=app), base_url=BASE_URL) as client:
         
         # 1. Access protected endpoint without token (Expect 401)
-        # /api/agents is protected
-        resp = await client.get("/agents/")
+        # /api/v1/agents is protected
+        resp = await client.get("/api/v1/agents/")
         print(f"[1] No Token Access: {resp.status_code}")
         assert resp.status_code == 401
         
         # 2. Register User (if public registration is enabled or use seed)
-        # We'll use the /users/ endpoint
+        # We'll use the /api/v1/users/ endpoint
         user_data = {
             "username": test_username,
             "email": test_email,
             "password": test_password,
             "role": "analyst"
         }
-        resp = await client.post("/users/", json=user_data)
+        resp = await client.post("/api/v1/users/", json=user_data)
         print(f"[2] Register User: {resp.status_code}")
         # It might be 200 or 400 if already exists (but we deleted it)
         assert resp.status_code == 200
@@ -51,7 +51,7 @@ async def test_auth_flow():
             "username": test_username,
             "password": test_password
         }
-        resp = await client.post("/auth/token", data=login_data)
+        resp = await client.post("/api/v1/token", data=login_data)
         print(f"[3] Login: {resp.status_code}")
         assert resp.status_code == 200
         token_data = resp.json()
@@ -60,7 +60,7 @@ async def test_auth_flow():
         
         # 4. Access protected endpoint with token (Expect 200)
         headers = {"Authorization": f"Bearer {access_token}"}
-        resp = await client.get("/agents/", headers=headers)
+        resp = await client.get("/api/v1/agents/", headers=headers)
         print(f"[4] With Token Access: {resp.status_code}")
         assert resp.status_code == 200
         

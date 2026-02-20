@@ -56,7 +56,7 @@ export function AlertPanel() {
     useEffect(() => {
         const fetchAlerts = async () => {
             try {
-                const response = await axios.get(`${API_BASE}/api/alerts/?limit=50`);
+                const response = await axios.get(`${API_BASE}/api/v1/alerts/?limit=50`);
                 setAlerts(response.data);
                 setError(null);
             } catch (err) {
