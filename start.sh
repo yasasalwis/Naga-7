@@ -379,12 +379,12 @@ export AGENT_LOG_LEVEL="INFO"
 [ "$VERBOSE" = true ] && AGENT_LOG_LEVEL="DEBUG"
 export LOG_LEVEL="$AGENT_LOG_LEVEL"
 
-SENTINEL_PID=$(launch_agent_window "$SCRIPT_DIR/run-sentinels.sh" "$LOG_DIR/n7-sentinels.log")
+SENTINEL_PID=$(launch_agent_window "$SCRIPT_DIR/scripts/run-sentinels.sh" "$LOG_DIR/n7-sentinels.log")
 echo "${SENTINEL_PID}:N7-Sentinels" >> "$PID_FILE"
 log_success "N7-Sentinels started in new window ($AGENT_LOG_LEVEL, PID: $SENTINEL_PID)"
 log_info "  Logs: logs/n7-sentinels.log"
 
-STRIKER_PID=$(launch_agent_window "$SCRIPT_DIR/run-strikers.sh" "$LOG_DIR/n7-strikers.log")
+STRIKER_PID=$(launch_agent_window "$SCRIPT_DIR/scripts/run-strikers.sh" "$LOG_DIR/n7-strikers.log")
 echo "${STRIKER_PID}:N7-Strikers" >> "$PID_FILE"
 log_success "N7-Strikers started in new window ($AGENT_LOG_LEVEL, PID: $STRIKER_PID)"
 log_info "  Logs: logs/n7-strikers.log"

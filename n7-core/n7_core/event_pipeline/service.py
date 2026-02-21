@@ -3,10 +3,6 @@ import json
 import logging
 from datetime import datetime
 
-from google.protobuf.json_format import MessageToDict
-
-# Protobuf schemas generated successfully
-from schemas.events_pb2 import Event as ProtoEvent
 from ..database.redis import redis_client
 from ..database.session import async_session_maker
 from ..messaging.nats_client import nats_client
@@ -88,21 +84,30 @@ class EventPipelineService(BaseService):
 
     async def handle_event(self, msg):
         """
-        Callback for incoming NATS messages (Protobuf).
+        Callback for incoming NATS messages (JSON from EventEmitterService).
         """
         try:
-            # Parse Protobuf
-            proto_event = ProtoEvent()
-            proto_event.ParseFromString(msg.data)
+            # Parse JSON payload sent by EventEmitterService
+            event_dict = json.loads(msg.data.decode())
 
-            event_dict = MessageToDict(proto_event, preserving_proto_field_name=True)
+            event_id = event_dict.get("event_id", str(__import__("uuid").uuid4()))
+            sentinel_id = event_dict.get("sentinel_id", "unknown")
+            event_class = event_dict.get("event_class", "unknown")
+            severity = event_dict.get("severity", "informational")
+            raw_data = event_dict.get("raw_data", {})
+            if isinstance(raw_data, str):
+                try:
+                    raw_data = json.loads(raw_data)
+                except Exception:
+                    raw_data = {"raw": raw_data}
+            timestamp_str = event_dict.get("timestamp")
 
             # 1. Deduplication
             if await self._is_duplicate(event_dict):
-                logger.debug(f"Duplicate event dropped: {proto_event.event_id}")
+                logger.debug(f"Duplicate event dropped: {event_id}")
                 return
 
-            logger.info(f"Processing event: {proto_event.event_id} type={proto_event.event_class}")
+            logger.info(f"Processing event: {event_id} type={event_class}")
 
             # 2. Enrichment — IOC cross-reference via ThreatIntelService
             enrichments = {}
@@ -112,46 +117,36 @@ class EventPipelineService(BaseService):
             # IOC Promotion: if any IOC match found, immediately elevate event to critical
             if enrichments.get("threat_intel_matches"):
                 logger.warning(
-                    f"IOC match on event {proto_event.event_id} — promoting to critical. "
+                    f"IOC match on event {event_id} — promoting to critical. "
                     f"Matches: {enrichments['threat_intel_matches']}"
                 )
-                proto_event.severity = "critical"
-                # Inject match detail into raw_data so Correlator and Dashboard can surface it
-                try:
-                    raw = json.loads(proto_event.raw_data) if proto_event.raw_data else {}
-                    raw["ioc_matched"] = True
-                    raw["ioc_matches"] = enrichments["threat_intel_matches"]
-                    proto_event.raw_data = json.dumps(raw)
-                except Exception:
-                    pass
+                severity = "critical"
+                raw_data["ioc_matched"] = True
+                raw_data["ioc_matches"] = enrichments["threat_intel_matches"]
 
             # 3. Persistence
             async with async_session_maker() as session:
-                # Handle timestamp: Proto timestamp is usually string ISO 8601 or Google Timestamp
-                # Assuming string for simplicity based on previous context, or current time fallback
                 ts = datetime.utcnow()
-                if hasattr(proto_event, 'timestamp') and proto_event.timestamp:
+                if timestamp_str:
                     try:
-                        ts = datetime.fromisoformat(proto_event.timestamp.replace('Z', '+00:00'))
-                    except:
+                        ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                    except Exception:
                         pass
 
                 db_event = EventModel(
-                    event_id=proto_event.event_id,
+                    event_id=event_id,
                     timestamp=ts,
-                    sentinel_id=proto_event.sentinel_id,
-                    event_class=proto_event.event_class,
-                    severity=proto_event.severity,
-                    raw_data=event_dict.get('raw_data', {}),
+                    sentinel_id=sentinel_id,
+                    event_class=event_class,
+                    severity=severity,
+                    raw_data=raw_data,
                     enrichments=enrichments,
-                    mitre_techniques=list(proto_event.mitre_techniques) if hasattr(proto_event,
-                                                                                   'mitre_techniques') else []
+                    mitre_techniques=event_dict.get("mitre_techniques", [])
                 )
                 session.add(db_event)
                 await session.commit()
 
             # 4. Forward to Threat Correlation (via NATS subject)
-            # Publishing to internal stream for other services (Correlator)
             if nats_client.nc:
                 await nats_client.nc.publish("n7.internal.events", msg.data)
 

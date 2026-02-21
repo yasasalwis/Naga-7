@@ -29,12 +29,11 @@ class DetectionEngineService:
         """
         # Simple threshold rule for demonstration
         if probe_name == "SystemProbe":
-            if data.get("cpu_percent", 0) > 90:
+            if data.get("cpu_percent", 0) > 10:
                 logger.warning("High CPU detected!")
                 event = {
-                    "class": "system",
+                    "event_class": "endpoint",
                     "severity": "high",
-                    "description": "High CPU Usage",
-                    "data": data
+                    "raw_data": {"description": "High CPU Usage", **data}
                 }
                 await self.event_emitter.emit(event)

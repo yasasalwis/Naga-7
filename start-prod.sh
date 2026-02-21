@@ -596,7 +596,7 @@ echo ""
 echo -e "${CYAN}Restart policy:${NC}  max ${MAX_RESTARTS} restarts, ${RESTART_DELAY}s delay"
 echo ""
 echo -e "${YELLOW}Send SIGTERM or Ctrl+C to stop all services gracefully.${NC}"
-echo -e "Or run ${YELLOW}./stop.sh${NC} from another terminal."
+echo -e "Or run ${YELLOW}./scripts/stop.sh${NC} from another terminal."
 echo ""
 
 # ── Keep this process alive so traps fire on Ctrl+C / SIGTERM ────────────────

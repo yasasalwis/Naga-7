@@ -14,7 +14,7 @@ printf '\033]0;N7-Sentinels\007'
 # Write PID so start.sh can track and kill this process
 [ -n "$N7_PID_OUT" ] && echo $$ > "$N7_PID_OUT"
 
-SCRIPT_DIR="${N7_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+SCRIPT_DIR="${N7_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 LOG_DIR="$SCRIPT_DIR/logs"
 mkdir -p "$LOG_DIR"
 

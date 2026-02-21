@@ -20,8 +20,8 @@ if "%1"=="--keep-infra" set KEEP_INFRA=true
 shift
 if not "%1"=="" goto parse_args
 
-REM Get script directory
-set SCRIPT_DIR=%~dp0
+REM Get script directory (one level up from scripts\)
+set SCRIPT_DIR=%~dp0..
 cd /d "%SCRIPT_DIR%"
 
 echo.

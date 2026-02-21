@@ -31,7 +31,7 @@ for arg in "$@"; do
     esac
 done
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 cd "$SCRIPT_DIR"
 
 PID_FILE="$SCRIPT_DIR/.naga7.pids"

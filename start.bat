@@ -244,6 +244,6 @@ echo Logs:
 echo   View all logs in: logs\
 echo.
 echo Services are running in separate windows.
-echo To stop services, close the individual windows or run: stop.bat
+echo To stop services, close the individual windows or run: scripts\stop.bat
 echo.
 pause
