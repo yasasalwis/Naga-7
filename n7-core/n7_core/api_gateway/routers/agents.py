@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid as _uuid
 from datetime import datetime, timedelta, UTC
@@ -9,6 +10,7 @@ from sqlalchemy import select
 from ..auth import get_agent_from_api_key, get_current_active_user, pwd_context
 from ...config_sync.service import ConfigSyncService
 from ...database.session import async_session_maker
+from ...messaging.nats_client import nats_client
 from ...models.agent import Agent as AgentModel
 from ...models.agent_config import AgentConfig
 from ...schemas.agent import Agent, AgentRegister, AgentHeartbeat, AgentConfigUpdate, AgentUpdate
@@ -20,6 +22,35 @@ AGENT_STALE_THRESHOLD_SECONDS = 90
 logger = logging.getLogger("n7-core.agents-router")
 
 _config_sync = ConfigSyncService()
+
+
+async def _push_config_to_agent(agent_id: str, cfg) -> None:
+    """
+    Publish the updated config snapshot to the agent via NATS so it applies
+    immediately instead of waiting for the 60-second poll cycle.
+    Subject: n7.config.<agent_id>
+    Fails silently — agents fall back to their poll loop if NATS is unavailable.
+    """
+    if not nats_client.nc.is_connected:
+        return
+    try:
+        payload = {
+            "config_version":        cfg.config_version,
+            "zone":                  cfg.zone,
+            "log_level":             cfg.log_level,
+            "probe_interval_seconds": cfg.probe_interval_seconds,
+            "detection_thresholds":  cfg.detection_thresholds or {},
+            "enabled_probes":        cfg.enabled_probes or [],
+            "capabilities":          cfg.capabilities or [],
+            "allowed_actions":       cfg.allowed_actions,
+            "action_defaults":       cfg.action_defaults or {},
+            "max_concurrent_actions": cfg.max_concurrent_actions,
+        }
+        subject = f"n7.config.{agent_id}"
+        await nats_client.nc.publish(subject, json.dumps(payload).encode())
+        logger.info(f"Pushed config version {cfg.config_version} to {subject}")
+    except Exception as e:
+        logger.warning(f"Failed to push config to agent {agent_id} via NATS: {e}")
 
 
 @router.get("/", response_model=List[Agent])
@@ -277,11 +308,13 @@ async def update_agent_config(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    await _push_config_to_agent(agent_id, updated_cfg)
+
     return {
         "agent_id": agent_id,
         "config_version": updated_cfg.config_version,
         "updated_fields": list(update_dict.keys()),
-        "message": "Config updated. Agent will reload on next config poll cycle (~60s).",
+        "message": "Config updated and pushed to agent via NATS.",
     }
 
 
@@ -327,11 +360,12 @@ async def update_agent(
 
     if config_fields:
         try:
-            await _config_sync.upsert_config(
+            updated_cfg = await _config_sync.upsert_config(
                 agent_id=_uuid.UUID(agent_id),
                 config_dict=config_fields,
                 agent_type=agent.agent_type,
             )
+            await _push_config_to_agent(agent_id, updated_cfg)
         except ValueError:
             logger.warning(
                 f"No AgentConfig provisioned for agent {agent_id}; "

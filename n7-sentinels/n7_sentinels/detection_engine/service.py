@@ -1,6 +1,8 @@
 import logging
 from typing import Dict, Any
 
+from ..agent_runtime.config import settings
+
 logger = logging.getLogger("n7-sentinel.detection-engine")
 
 
@@ -29,10 +31,14 @@ class DetectionEngineService:
         Supports SystemProbe, ProcessProbe, NetworkProbe, and FileProbe.
         """
         if probe_name == "SystemProbe":
+            thresholds = settings.DETECTION_THRESHOLDS
+            cpu_t  = float(thresholds.get("cpu_threshold", 80))
+            mem_t  = float(thresholds.get("mem_threshold", 85))
+            disk_t = float(thresholds.get("disk_threshold", 90))
             checks = [
-                (data.get("cpu_percent", 0) > 13,   "high",   "High CPU Usage"),
-                (data.get("memory_percent", 0) > 85, "high",   "High Memory Usage"),
-                (data.get("disk_percent", 0) > 90,   "high",   "High Disk Usage"),
+                (data.get("cpu_percent", 0) > cpu_t,   "high", f"High CPU Usage (threshold={cpu_t}%)"),
+                (data.get("memory_percent", 0) > mem_t, "high", f"High Memory Usage (threshold={mem_t}%)"),
+                (data.get("disk_percent", 0) > disk_t,  "high", f"High Disk Usage (threshold={disk_t}%)"),
             ]
             for condition, severity, description in checks:
                 if condition:

@@ -18,7 +18,10 @@ logger = logging.getLogger("n7-core.llm-analyzer")
 _EVENT_PROMPT = (
     "You are a cybersecurity AI. Analyze the following raw event data from a Sentinel. "
     "Provide a brief 1-2 sentence recommendation or insight regarding this single event. "
-    "Focus on whether it looks suspicious or benign. Return only plain text."
+    "Focus on whether it looks suspicious or benign. "
+    "Return ONLY a JSON object with two keys:\n"
+    "  \"insight\": your 1-2 sentence recommendation\n"
+    "  \"recommended_action\": (optional) if actionable, an object with \"action_type\" and \"target\""
 )
 
 # System prompt sent to Ollama before each alert bundle
@@ -268,14 +271,19 @@ class LLMAnalyzerService(BaseService):
                         "model": self._ollama_model,
                         "prompt": full_prompt,
                         "stream": False,
+                        "format": "json",
                     },
                     timeout=20.0,
                 )
                 response.raise_for_status()
-                llm_response = response.json().get("response", "").strip()
+                llm_response_text = response.json().get("response", "{}").strip()
+                try:
+                    llm_response = json.loads(llm_response_text)
+                except Exception:
+                    llm_response = {"insight": llm_response_text}
             except Exception as e:
                 logger.warning(f"Ollama unavailable for event {event_id}: {e}")
-                llm_response = "Unable to reach LLM for recommendation."
+                llm_response = {"insight": "Unable to reach LLM for recommendation."}
 
             from sqlalchemy import select, update
             from ..database.session import async_session_maker

@@ -345,12 +345,16 @@ export function NodeDeployment({ onAuthError }: NodeDeploymentProps = {}) {
 
                     {/* Hostname */}
                     <td className="nd-td nd-td--host">
-                      <span className="nd-hostname">
-                        {node.hostname || <span className="nd-no-hostname">—</span>}
-                      </span>
-                      {node.error_message && (
-                        <span className="nd-row-error" title={node.error_message}>⚠</span>
-                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span className="nd-hostname">
+                          {node.hostname || <span className="nd-no-hostname">—</span>}
+                        </span>
+                        {node.error_message && (
+                          <span className="nd-row-error" style={{ color: 'var(--accent-error)', fontSize: '0.75rem', marginTop: '2px' }}>
+                            ⚠ {node.error_message}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* IP Address */}

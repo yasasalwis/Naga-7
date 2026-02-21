@@ -72,7 +72,7 @@ class AgentRuntimeService:
         logger.info("AgentRuntimeService stopped.")
 
     async def _connect_nats(self):
-        """Connect to NATS for push-based heartbeats. Fails gracefully if unavailable."""
+        """Connect to NATS for push-based heartbeats and config-push subscription. Fails gracefully if unavailable."""
         if not settings.NATS_URL:
             logger.warning("NATS_URL not set — NATS heartbeats disabled, using HTTP fallback.")
             return
@@ -81,9 +81,61 @@ class AgentRuntimeService:
             self._nats_client = _nc
             await self._nats_client.connect()
             logger.info(f"Connected to NATS at {settings.NATS_URL}")
+            # Subscribe to config-push subject so Core can update us immediately
+            await self._subscribe_config_push()
         except Exception as e:
             logger.warning(f"NATS connection failed: {e} — heartbeats will use HTTP fallback.")
             self._nats_client = None
+
+    async def _subscribe_config_push(self):
+        """
+        Subscribe to n7.config.<agent_id> for real-time config updates pushed by Core.
+        When Core saves a new config version it publishes the full config snapshot to
+        this subject so the agent applies it immediately without waiting for the 60s poll.
+        """
+        if not self._agent_id or not self._nats_client:
+            return
+        subject = f"n7.config.{self._agent_id}"
+
+        async def _on_config_push(msg):
+            try:
+                data = json.loads(msg.data.decode())
+                incoming_version = data.get("config_version", 0)
+                if incoming_version <= self._config_version:
+                    logger.debug(
+                        f"Config push ignored: incoming version {incoming_version} "
+                        f"<= current {self._config_version}"
+                    )
+                    return
+                logger.info(
+                    f"Config push received: version {self._config_version} → {incoming_version}. "
+                    "Applying immediately."
+                )
+                # Apply the pushed fields directly into settings
+                if data.get("zone"):
+                    settings.ZONE = data["zone"]
+                if data.get("log_level"):
+                    settings.LOG_LEVEL = data["log_level"]
+                    logging.getLogger().setLevel(data["log_level"])
+                if data.get("capabilities"):
+                    settings.CAPABILITIES = data["capabilities"]
+                if "allowed_actions" in data:
+                    settings.ALLOWED_ACTIONS = data["allowed_actions"]
+                if data.get("action_defaults"):
+                    settings.ACTION_DEFAULTS = data["action_defaults"]
+                if "max_concurrent_actions" in data:
+                    settings.MAX_CONCURRENT_ACTIONS = data["max_concurrent_actions"]
+                self._config_version = incoming_version
+                logger.info(
+                    f"Applied pushed config v{incoming_version}: "
+                    f"capabilities={settings.CAPABILITIES}, "
+                    f"allowed_actions={settings.ALLOWED_ACTIONS}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to process config push: {e}")
+
+        await self._nats_client.nc.subscribe(subject, cb=_on_config_push)
+        logger.info(f"Subscribed to config push on {subject}")
 
     def _load_or_generate_api_key(self) -> str:
         """

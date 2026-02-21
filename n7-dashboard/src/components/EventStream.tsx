@@ -35,6 +35,19 @@ export function EventStream() {
         return () => clearInterval(interval);
     }, []);
 
+    const handleStrike = async (eventId: string, actionType: string, target: string) => {
+        try {
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/events/${eventId}/strike`, {
+                action_type: actionType,
+                target: target
+            });
+            alert('Strike action dispatched successfully!');
+        } catch (error) {
+            console.error('Failed to dispatch strike', error);
+            alert('Failed to dispatch strike action');
+        }
+    };
+
     const getSeverityClass = (severity: string) => {
         switch (severity.toLowerCase()) {
             case 'high': return 'high';
@@ -66,7 +79,26 @@ export function EventStream() {
                         {evt.enrichments?.llm_recommendation && (
                             <div className="event-llm-recommendation">
                                 <Brain size={14} className="event-llm-icon" />
-                                <strong>AI Insight:</strong> {evt.enrichments.llm_recommendation}
+                                <div style={{ flex: 1 }}>
+                                    <strong>AI Insight:</strong> {
+                                        typeof evt.enrichments.llm_recommendation === 'string'
+                                            ? evt.enrichments.llm_recommendation
+                                            : evt.enrichments.llm_recommendation.insight || JSON.stringify(evt.enrichments.llm_recommendation)
+                                    }
+                                </div>
+                                {typeof evt.enrichments.llm_recommendation === 'object' && evt.enrichments.llm_recommendation.recommended_action && (
+                                    <button
+                                        className="nd-btn nd-btn--deploy"
+                                        style={{ padding: '4px 8px', fontSize: '0.75rem', height: 'auto' }}
+                                        onClick={() => handleStrike(
+                                            evt.event_id,
+                                            evt.enrichments.llm_recommendation.recommended_action.action_type,
+                                            evt.enrichments.llm_recommendation.recommended_action.target
+                                        )}
+                                    >
+                                        ⚡ Strike
+                                    </button>
+                                )}
                             </div>
                         )}
                         <pre className="event-data">
