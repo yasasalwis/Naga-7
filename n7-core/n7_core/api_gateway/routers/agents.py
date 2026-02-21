@@ -37,6 +37,35 @@ async def list_agents():
     return agents
 
 
+@router.get("/strikers")
+async def list_strikers():
+    """
+    Return all striker agents with their current status and capabilities.
+    Used by the dashboard to show which strikers are available for operator dispatch.
+    """
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(AgentModel).where(AgentModel.agent_type == "striker")
+        )
+        strikers = result.scalars().all()
+
+    stale_cutoff = datetime.utcnow() - timedelta(seconds=AGENT_STALE_THRESHOLD_SECONDS)
+    out = []
+    for s in strikers:
+        status = s.status
+        if s.last_heartbeat and s.last_heartbeat < stale_cutoff:
+            status = "inactive"
+        out.append({
+            "id": str(s.id),
+            "agent_subtype": s.agent_subtype,
+            "zone": s.zone,
+            "status": status,
+            "capabilities": s.capabilities or [],
+            "last_heartbeat": s.last_heartbeat.isoformat() if s.last_heartbeat else None,
+        })
+    return out
+
+
 @router.post("/register", response_model=Agent)
 async def register_agent(agent_in: AgentRegister):
     """

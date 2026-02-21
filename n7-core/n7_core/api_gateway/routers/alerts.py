@@ -1,15 +1,47 @@
 """
 Alerts Router.
 Exposes paginated alert records including LLM-generated narratives.
-Ref: TDD Section 4.X LLM Analyzer Dashboard Integration, SRS FR-D004
+Also provides operator-driven striker dispatch from the dashboard.
+Ref: TDD Section 4.X LLM Analyzer Dashboard Integration, SRS FR-D004, FR-K001
 """
-from fastapi import APIRouter, Query
+import json
+import logging
+import uuid as _uuid
+from typing import List, Optional
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from ...database.session import async_session_maker
+from ...messaging.nats_client import nats_client
 from ...models.alert import Alert as AlertModel
+from ...models.action import Action as ActionModel
+from datetime import datetime
 from sqlalchemy import select, desc
 
 router = APIRouter(tags=["Alerts"])
+logger = logging.getLogger("n7-core.alerts-router")
+
+
+# ---------------------------------------------------------------------------
+# Schemas for dispatch
+# ---------------------------------------------------------------------------
+
+class StrikerAction(BaseModel):
+    """A single action to dispatch to a striker."""
+    action_type: str          # e.g. network_block, kill_process, isolate_host
+    parameters: dict = {}     # Action-specific params
+
+class DispatchRequest(BaseModel):
+    """Operator-confirmed dispatch of one or more striker actions from the dashboard."""
+    actions: List[StrikerAction]
+    operator_note: Optional[str] = None  # Optional reason / free-text note
+
+class DispatchResult(BaseModel):
+    action_type: str
+    action_id: str
+    status: str               # queued | error
+    error: Optional[str] = None
 
 
 @router.get("/")
@@ -55,14 +87,12 @@ async def list_alerts(
 @router.get("/{alert_id}")
 async def get_alert(alert_id: str):
     """Return a single alert by its UUID."""
-    import uuid as _uuid
     async with async_session_maker() as session:
         result = await session.execute(
             select(AlertModel).where(AlertModel.alert_id == _uuid.UUID(alert_id))
         )
         a = result.scalar_one_or_none()
         if a is None:
-            from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Alert not found")
 
     return {
@@ -81,3 +111,92 @@ async def get_alert(alert_id: str):
         "llm_mitre_technique": a.llm_mitre_technique,
         "llm_remediation": a.llm_remediation,
     }
+
+
+@router.post("/{alert_id}/dispatch")
+async def dispatch_striker_actions(alert_id: str, req: DispatchRequest):
+    """
+    Operator-driven dispatch of striker actions for a specific alert.
+    The dashboard calls this after the operator reviews LLM recommendations
+    and clicks 'Dispatch'. Each action is persisted to the DB and published
+    to the appropriate n7.actions.{action_type} NATS subject.
+    Ref: SRS FR-K001, FR-D005
+    """
+    # Validate alert exists
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(AlertModel).where(AlertModel.alert_id == _uuid.UUID(alert_id))
+        )
+        alert = result.scalar_one_or_none()
+        if alert is None:
+            raise HTTPException(status_code=404, detail="Alert not found")
+
+    results: list[dict] = []
+
+    for action in req.actions:
+        action_id = str(_uuid.uuid4())
+        try:
+            # Persist action to DB
+            async with async_session_maker() as session:
+                db_action = ActionModel(
+                    action_id=_uuid.UUID(action_id),
+                    incident_id=None,
+                    action_type=action.action_type,
+                    parameters={
+                        **action.parameters,
+                        "_source": "operator_dispatch",
+                        "_alert_id": alert_id,
+                        "_operator_note": req.operator_note or "",
+                    },
+                    status="queued",
+                    timestamp=datetime.utcnow(),
+                )
+                session.add(db_action)
+                await session.commit()
+
+            # Publish to NATS
+            if nats_client.nc and nats_client.nc.is_connected:
+                try:
+                    from schemas.actions_pb2 import Action as ProtoAction
+                    proto = ProtoAction(
+                        action_id=action_id,
+                        incident_id="",
+                        action_type=action.action_type,
+                        parameters=json.dumps(action.parameters),
+                        status="queued",
+                    )
+                    await nats_client.nc.publish(
+                        f"n7.actions.{action.action_type}",
+                        proto.SerializeToString(),
+                    )
+                    logger.info(
+                        f"Operator dispatched action {action_id} "
+                        f"type={action.action_type} for alert={alert_id}"
+                    )
+                except Exception as proto_err:
+                    # Fallback: publish JSON if protobuf import fails
+                    payload = json.dumps({
+                        "action_id": action_id,
+                        "action_type": action.action_type,
+                        "parameters": action.parameters,
+                        "status": "queued",
+                    }).encode()
+                    await nats_client.nc.publish(f"n7.actions.{action.action_type}", payload)
+                    logger.warning(f"Proto fallback used for action {action_id}: {proto_err}")
+            else:
+                logger.warning(
+                    f"NATS unavailable — action {action_id} persisted to DB only (queued)"
+                )
+
+            results.append({"action_type": action.action_type, "action_id": action_id, "status": "queued"})
+
+        except Exception as e:
+            logger.error(f"Failed to dispatch action {action.action_type}: {e}", exc_info=True)
+            results.append({
+                "action_type": action.action_type,
+                "action_id": action_id,
+                "status": "error",
+                "error": str(e),
+            })
+
+    return {"alert_id": alert_id, "dispatched": results}

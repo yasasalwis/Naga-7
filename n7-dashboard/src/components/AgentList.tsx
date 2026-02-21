@@ -26,7 +26,11 @@ interface Agent {
   node_metadata?: NodeMetadata | null;
 }
 
-export function AgentList() {
+interface AgentListProps {
+  onAuthError?: () => void;
+}
+
+export function AgentList({ onAuthError }: AgentListProps) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [expandedMeta, setExpandedMeta] = useState<Set<string>>(new Set());
   const [configuringAgentId, setConfiguringAgentId] = useState<string | null>(null);
@@ -172,6 +176,7 @@ export function AgentList() {
           agentId={configuringAgentId}
           agentType={configuringAgentType}
           onClose={() => setConfiguringAgentId(null)}
+          onAuthError={onAuthError}
         />
       )}
     </div>

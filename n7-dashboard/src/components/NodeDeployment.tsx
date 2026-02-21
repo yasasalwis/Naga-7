@@ -52,7 +52,11 @@ function osIcon(os: string | null): string {
   }
 }
 
-export function NodeDeployment() {
+interface NodeDeploymentProps {
+  onAuthError?: () => void;
+}
+
+export function NodeDeployment({ onAuthError }: NodeDeploymentProps = {}) {
   const [nodes, setNodes] = useState<InfraNode[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
@@ -508,6 +512,7 @@ export function NodeDeployment() {
           node={editNode}
           onClose={() => setEditNode(null)}
           onSaved={() => { setEditNode(null); fetchNodes(); }}
+          onAuthError={onAuthError}
         />
       )}
     </div>

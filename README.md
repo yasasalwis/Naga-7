@@ -174,6 +174,48 @@ Once all services are running:
 - **API Documentation:** http://localhost:8000/docs
 - **NATS Monitoring:** http://localhost:8222
 
+## 🔐 Dashboard Authentication
+
+The dashboard requires a user account to log in. No default credentials are seeded — you must create a user after N7-Core is running.
+
+### Create your first user
+
+```bash
+curl -X POST http://localhost:8000/api/v1/users/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "email": "admin@n7.local",
+    "password": "changeme",
+    "role": "admin"
+  }'
+```
+
+Available roles:
+
+| Role | Description |
+|------|-------------|
+| `admin` | Full access |
+| `operator` | Can configure agents and run playbooks |
+| `analyst` | Read access + alert triage |
+| `auditor` | Read-only access |
+
+### Log in
+
+Navigate to http://localhost:5173 — you will be redirected to the login page automatically. Enter the username and password you created above.
+
+Tokens expire after **30 minutes**. The dashboard will return you to the login page automatically when your session expires.
+
+### Verify via API (optional)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/token \
+  -d "username=admin&password=changeme"
+# Returns: {"access_token": "...", "token_type": "bearer"}
+```
+
+> **Security note:** `POST /api/v1/users/` is currently open (no auth required) to allow bootstrapping. Restrict network access to the API gateway in production environments.
+
 ## 🛑 Stopping Services
 
 ### Using the Startup Script

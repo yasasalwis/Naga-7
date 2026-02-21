@@ -18,6 +18,7 @@ interface AgentConfigModalProps {
   agentId: string;
   agentType: string;
   onClose: () => void;
+  onAuthError?: () => void;
 }
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -27,7 +28,7 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export function AgentConfigModal({ agentId, agentType, onClose }: AgentConfigModalProps) {
+export function AgentConfigModal({ agentId, agentType, onClose, onAuthError }: AgentConfigModalProps) {
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,7 +57,9 @@ export function AgentConfigModal({ agentId, agentType, onClose }: AgentConfigMod
         setCapabilitiesStr((cfg.capabilities || []).join(', '));
         setThresholdsStr(JSON.stringify(cfg.detection_thresholds || {}, null, 2));
       } catch (err: any) {
-        if (err?.response?.status === 404) {
+        if (err?.response?.status === 401) {
+          onAuthError?.();
+        } else if (err?.response?.status === 404) {
           setError('No configuration provisioned for this agent yet. Deploy the agent first.');
         } else {
           setError('Failed to load agent configuration.');
@@ -105,8 +108,12 @@ export function AgentConfigModal({ agentId, agentType, onClose }: AgentConfigMod
         'Agent will reload within ~60 seconds.'
       );
     } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      setError(detail || 'Failed to update configuration.');
+      if (err?.response?.status === 401) {
+        onAuthError?.();
+      } else {
+        const detail = err?.response?.data?.detail;
+        setError(detail || 'Failed to update configuration.');
+      }
     } finally {
       setSaving(false);
     }

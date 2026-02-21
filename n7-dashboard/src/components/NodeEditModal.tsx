@@ -29,6 +29,7 @@ interface NodeEditModalProps {
   node: InfraNode;
   onClose: () => void;
   onSaved: () => void;
+  onAuthError?: () => void;
 }
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/api/v1`;
@@ -38,7 +39,7 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export function NodeEditModal({ node, onClose, onSaved }: NodeEditModalProps) {
+export function NodeEditModal({ node, onClose, onSaved, onAuthError }: NodeEditModalProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -156,7 +157,11 @@ export function NodeEditModal({ node, onClose, onSaved }: NodeEditModalProps) {
       onSaved();
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.detail ?? err.message);
+        if (err.response?.status === 401) {
+          onAuthError?.();
+        } else {
+          setError(err.response?.data?.detail ?? err.message);
+        }
       } else {
         setError('Save failed. Please try again.');
       }

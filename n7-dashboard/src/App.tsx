@@ -1,11 +1,30 @@
+import { useState } from 'react';
 import './App.css';
 import { AgentList } from './components/AgentList';
 import { AlertPanel } from './components/AlertPanel';
 import { EventStream } from './components/EventStream';
 import { NodeDeployment } from './components/NodeDeployment';
-import { Shield } from 'lucide-react';
+import { LoginPage } from './components/LoginPage';
+import { Shield, LogOut } from 'lucide-react';
 
 function App() {
+  const [token, setToken] = useState<string | null>(
+    () => localStorage.getItem('n7_token')
+  );
+
+  const handleLogin = (newToken: string) => {
+    setToken(newToken);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('n7_token');
+    setToken(null);
+  };
+
+  if (!token) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
     <div className="app-container">
       <header className="app-header">
@@ -15,13 +34,17 @@ function App() {
             <h1>NAGA-7 Dashboard</h1>
             <p>Security Event Monitoring System</p>
           </div>
+          <button className="logout-btn" onClick={handleLogout} title="Sign out">
+            <LogOut size={16} />
+            <span>Sign out</span>
+          </button>
         </div>
       </header>
 
       <main className="main-content">
         <div className="dashboard-grid">
           <div className="grid-item">
-            <AgentList />
+            <AgentList onAuthError={handleLogout} />
           </div>
           <div className="grid-item">
             <EventStream />
@@ -30,7 +53,7 @@ function App() {
             <AlertPanel />
           </div>
           <div className="grid-item grid-item--full">
-            <NodeDeployment />
+            <NodeDeployment onAuthError={handleLogout} />
           </div>
         </div>
       </main>
