@@ -197,6 +197,8 @@ class AgentRuntimeService:
         """
         Sends periodic heartbeats to Core with API key authentication.
         On 404 the agent record is gone from Core (e.g. DB wipe); re-register.
+        On 403 the in-memory agent_id is stale (e.g. Core restarted while this
+        process was still running); re-register to re-sync the correct id.
         """
         while self._running:
             try:
@@ -218,6 +220,11 @@ class AgentRuntimeService:
                         elif resp.status == 404:
                             # Agent record missing on Core — re-register
                             logger.warning("Heartbeat 404: agent not found on Core, re-registering...")
+                            self._agent_id = None
+                            await self._authenticate()
+                        elif resp.status == 403:
+                            # Agent ID mismatch — in-memory id is stale; re-sync via register
+                            logger.warning("Heartbeat 403: agent ID mismatch, re-registering to sync...")
                             self._agent_id = None
                             await self._authenticate()
                         else:

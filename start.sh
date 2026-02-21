@@ -106,9 +106,19 @@ launch_agent_window() {
 
     # ── macOS: Terminal.app ──
     if [[ "$OSTYPE" == "darwin"* ]]; then
+        # osascript `do script` opens a new Terminal window that does NOT inherit
+        # the parent shell's environment, so N7_PID_OUT must be baked into the
+        # command string itself rather than relied on as an env var.
+        local escaped_launcher
+        escaped_launcher=$(printf '%q' "$launcher")
+        local escaped_pid_out
+        escaped_pid_out=$(printf '%q' "$pid_out")
+        local escaped_root
+        escaped_root=$(printf '%q' "$SCRIPT_DIR")
+
         osascript \
             -e 'tell application "Terminal"' \
-            -e "    do script \"exec bash $(printf '%q' "$launcher")\"" \
+            -e "    do script \"N7_ROOT=${escaped_root} N7_PID_OUT=${escaped_pid_out} exec bash ${escaped_launcher}\"" \
             -e '    activate' \
             -e 'end tell' \
             &>/dev/null
@@ -252,6 +262,33 @@ OSASCRIPT
 # Core runs inline (exec) so EXIT always fires when it stops.
 # Sentinels/Strikers run in their own windows and manage their own processes.
 trap cleanup SIGINT SIGTERM EXIT
+
+# ── Kill any orphaned processes from a previous run ───────────────────────────
+# This prevents duplicate agent/core processes accumulating across restarts.
+# Runs before the PID file is cleared so old PIDs are also handled.
+for pattern in \
+    "Naga-7/n7-core.*main\.py" \
+    "Naga-7/n7-sentinels.*main\.py" \
+    "Naga-7/n7-strikers.*main\.py"; do
+    pids=$(pgrep -f "$pattern" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        echo -e "${YELLOW}[CLEANUP]${NC} Stopping previous $pattern (PIDs: $pids)..."
+        kill -TERM $pids 2>/dev/null || true
+        sleep 1
+        pids=$(pgrep -f "$pattern" 2>/dev/null || true)
+        [ -n "$pids" ] && kill -KILL $pids 2>/dev/null || true
+    fi
+done
+
+# Close any leftover Sentinel/Striker terminal windows from the previous run
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    osascript &>/dev/null <<'OSASCRIPT' || true
+tell application "Terminal"
+    close (every window whose name contains "N7-Sentinels")
+    close (every window whose name contains "N7-Strikers")
+end tell
+OSASCRIPT
+fi
 
 # Clear PID file
 > "$PID_FILE"

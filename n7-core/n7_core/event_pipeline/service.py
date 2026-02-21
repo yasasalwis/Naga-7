@@ -3,6 +3,7 @@ import json
 import logging
 from datetime import datetime
 
+from schemas.events_pb2 import Event as ProtoEvent
 from ..database.redis import redis_client
 from ..database.session import async_session_maker
 from ..messaging.nats_client import nats_client
@@ -146,9 +147,18 @@ class EventPipelineService(BaseService):
                 session.add(db_event)
                 await session.commit()
 
-            # 4. Forward to Threat Correlation (via NATS subject)
+            # 4. Forward to Threat Correlation (via NATS subject) as Protobuf
             if nats_client.nc:
-                await nats_client.nc.publish("n7.internal.events", msg.data)
+                proto_event = ProtoEvent(
+                    event_id=event_id,
+                    timestamp=ts.isoformat(),
+                    sentinel_id=sentinel_id,
+                    event_class=event_class,
+                    severity=severity,
+                    raw_data=json.dumps(raw_data),
+                    enrichments=json.dumps(enrichments),
+                )
+                await nats_client.nc.publish("n7.internal.events", proto_event.SerializeToString())
 
         except Exception as e:
             logger.error(f"Error processing event: {e}", exc_info=True)
