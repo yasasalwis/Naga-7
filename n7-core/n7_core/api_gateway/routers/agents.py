@@ -1,6 +1,6 @@
 import logging
 import uuid as _uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,10 +29,14 @@ async def list_agents():
         agents = result.scalars().all()
 
     # Mark agents whose last heartbeat exceeds the stale threshold as inactive
-    stale_cutoff = datetime.utcnow() - timedelta(seconds=AGENT_STALE_THRESHOLD_SECONDS)
+    stale_cutoff = datetime.now(UTC) - timedelta(seconds=AGENT_STALE_THRESHOLD_SECONDS)
     for agent in agents:
-        if agent.last_heartbeat and agent.last_heartbeat < stale_cutoff:
-            agent.status = "inactive"
+        if agent.last_heartbeat:
+            hb = agent.last_heartbeat
+            if hb.tzinfo is None:
+                hb = hb.replace(tzinfo=UTC)
+            if hb < stale_cutoff:
+                agent.status = "inactive"
 
     return agents
 
@@ -49,12 +53,16 @@ async def list_strikers():
         )
         strikers = result.scalars().all()
 
-    stale_cutoff = datetime.utcnow() - timedelta(seconds=AGENT_STALE_THRESHOLD_SECONDS)
+    stale_cutoff = datetime.now(UTC) - timedelta(seconds=AGENT_STALE_THRESHOLD_SECONDS)
     out = []
     for s in strikers:
         status = s.status
-        if s.last_heartbeat and s.last_heartbeat < stale_cutoff:
-            status = "inactive"
+        if s.last_heartbeat:
+            hb = s.last_heartbeat
+            if hb.tzinfo is None:
+                hb = hb.replace(tzinfo=UTC)
+            if hb < stale_cutoff:
+                status = "inactive"
         out.append({
             "id": str(s.id),
             "agent_subtype": s.agent_subtype,
@@ -86,7 +94,7 @@ async def register_agent(agent_in: AgentRegister):
             # Verify if it's the same key
             if pwd_context.verify(agent_in.api_key, existing_agent.api_key_hash):
                 # Valid re-registration, update status and return
-                existing_agent.last_heartbeat = datetime.utcnow()
+                existing_agent.last_heartbeat = datetime.now(UTC)
                 existing_agent.status = "active"
                 # Update other fields if needed
                 existing_agent.capabilities = agent_in.capabilities
@@ -112,7 +120,7 @@ async def register_agent(agent_in: AgentRegister):
             api_key_prefix=api_key_prefix,
             api_key_hash=api_key_hash,
             status="active",
-            last_heartbeat=datetime.utcnow()
+            last_heartbeat=datetime.now(UTC)
         )
         session.add(db_agent)
         await session.commit()
@@ -151,7 +159,7 @@ async def heartbeat(
             raise HTTPException(status_code=404, detail="Agent not found")
 
         # Update heartbeat
-        agent.last_heartbeat = datetime.utcnow()
+        agent.last_heartbeat = datetime.now(UTC)
         agent.status = heartbeat_in.status
         agent.resource_usage = heartbeat_in.resource_usage
         await session.commit()
@@ -166,6 +174,7 @@ async def get_agent_config_meta(
     """
     Return non-sensitive config fields for dashboard display.
     User-authenticated (JWT Bearer). Does NOT return encrypted NATS/API URLs.
+    Returns type-specific fields based on the agent's registered agent_type.
     """
     async with async_session_maker() as session:
         result = await session.execute(
@@ -173,19 +182,67 @@ async def get_agent_config_meta(
         )
         cfg = result.scalar_one_or_none()
 
-    if not cfg:
-        raise HTTPException(status_code=404, detail="No config found for this agent.")
+        # Also fetch the agent record to know the type
+        agent_result = await session.execute(
+            select(AgentModel).where(AgentModel.id == _uuid.UUID(agent_id))
+        )
+        agent = agent_result.scalar_one_or_none()
 
-    return {
+    agent_type = agent.agent_type if agent else ""
+
+    if not cfg:
+        # Return a type-appropriate default config shell so the dashboard can
+        # render the correct form and the operator can save an initial configuration.
+        base = {
+            "agent_id": agent_id,
+            "agent_type": agent_type,
+            "config_version": 0,
+            "zone": "default",
+            "log_level": "INFO",
+            "environment": "production",
+        }
+        if agent_type == "sentinel":
+            base.update({
+                "probe_interval_seconds": 10,
+                "detection_thresholds": {
+                    "cpu_threshold": 80,
+                    "mem_threshold": 85,
+                    "disk_threshold": 90,
+                    "load_multiplier": 2.0,
+                },
+                "enabled_probes": ["system", "network", "process", "file"],
+            })
+        elif agent_type == "striker":
+            base.update({
+                "capabilities": ["network_block", "process_kill", "file_quarantine"],
+                "allowed_actions": None,
+                "action_defaults": {"network_block": {"duration": 3600}},
+                "max_concurrent_actions": None,
+            })
+        return base
+
+    response = {
         "agent_id": agent_id,
+        "agent_type": agent_type,
         "config_version": cfg.config_version,
         "zone": cfg.zone,
         "log_level": cfg.log_level,
-        "probe_interval_seconds": cfg.probe_interval_seconds,
-        "detection_thresholds": cfg.detection_thresholds or {},
-        "capabilities": cfg.capabilities or [],
         "environment": cfg.environment,
     }
+    if agent_type == "sentinel":
+        response.update({
+            "probe_interval_seconds": cfg.probe_interval_seconds,
+            "detection_thresholds": cfg.detection_thresholds or {},
+            "enabled_probes": cfg.enabled_probes or [],
+        })
+    elif agent_type == "striker":
+        response.update({
+            "capabilities": cfg.capabilities or [],
+            "allowed_actions": cfg.allowed_actions,
+            "action_defaults": cfg.action_defaults or {},
+            "max_concurrent_actions": cfg.max_concurrent_actions,
+        })
+    return response
 
 
 @router.put("/{agent_id}/config")
@@ -215,6 +272,7 @@ async def update_agent_config(
         updated_cfg = await _config_sync.upsert_config(
             agent_id=_uuid.UUID(agent_id),
             config_dict=update_dict,
+            agent_type=agent.agent_type,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -272,6 +330,7 @@ async def update_agent(
             await _config_sync.upsert_config(
                 agent_id=_uuid.UUID(agent_id),
                 config_dict=config_fields,
+                agent_type=agent.agent_type,
             )
         except ValueError:
             logger.warning(

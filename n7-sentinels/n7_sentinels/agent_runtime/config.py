@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal
+from typing import Dict, List, Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,6 +31,16 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = "INFO"
+
+    # Sentinel-specific — populated from remote config; defaults used until first sync
+    PROBE_INTERVAL_SECONDS: int = 10
+    DETECTION_THRESHOLDS: Dict[str, float] = {
+        "cpu_threshold": 80.0,
+        "mem_threshold": 85.0,
+        "disk_threshold": 90.0,
+        "load_multiplier": 2.0,
+    }
+    ENABLED_PROBES: List[str] = ["system", "network", "process", "file"]
 
 
 settings = Settings()

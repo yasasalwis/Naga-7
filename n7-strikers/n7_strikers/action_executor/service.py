@@ -5,6 +5,7 @@ from ..actions.kill_process import KillProcessAction
 from ..actions.network_block import NetworkBlockAction, NetworkUnblockAction
 from ..actions.network_isolator import NetworkIsolatorAction, NetworkUnisolatorAction
 from ..agent_id import get_agent_id
+from ..agent_runtime.config import settings
 from ..evidence_collector.service import EvidenceCollectorService
 from ..messaging.nats_client import nats_client
 from ..rollback_manager.service import RollbackManagerService
@@ -108,10 +109,31 @@ class ActionExecutorService:
                 logger.error(f"Unknown action type: {action_type}")
                 return
 
+            # Check against allowed_actions (config-driven allowlist)
+            allowed = settings.ALLOWED_ACTIONS
+            if allowed is not None and action_type not in allowed:
+                logger.warning(
+                    f"Action '{action_type}' rejected: not in allowed_actions={allowed}. "
+                    "Update striker config to permit this action."
+                )
+                if nats_client.nc.is_connected:
+                    await nats_client.nc.publish("n7.actions.status", json.dumps({
+                        "action_id": action_id,
+                        "striker_id": get_agent_id(),
+                        "action_type": action_type,
+                        "status": "rejected",
+                        "result_data": {"error": f"Action '{action_type}' not in allowed_actions for this striker."},
+                    }).encode())
+                return
+
             try:
                 params = json.loads(proto_action.parameters)
             except Exception:
                 params = {}
+
+            # Merge action_defaults under params (params from command take precedence)
+            defaults = settings.ACTION_DEFAULTS.get(action_type, {})
+            params = {**defaults, **params}
 
             # --- Pre-action forensic evidence ---
             pre_evidence = await self._evidence_collector.collect_pre_action(

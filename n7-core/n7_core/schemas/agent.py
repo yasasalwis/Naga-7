@@ -58,12 +58,24 @@ class Agent(AgentBase):
 
 
 class AgentConfigUpdate(BaseModel):
-    """Request body for PUT /agents/{agent_id}/config — user-authenticated."""
+    """Request body for PUT /agents/{agent_id}/config — user-authenticated.
+    Shared fields apply to all agent types. Sentinel/striker-specific fields
+    are ignored if sent for the wrong agent type (server enforces this)."""
+
+    # Shared
     zone: Optional[str] = None
     log_level: Optional[str] = None
+
+    # Sentinel-specific
     probe_interval_seconds: Optional[int] = None
     detection_thresholds: Optional[Dict[str, Any]] = None
+    enabled_probes: Optional[List[str]] = None
+
+    # Striker-specific
     capabilities: Optional[List[str]] = None
+    allowed_actions: Optional[List[str]] = None
+    action_defaults: Optional[Dict[str, Any]] = None
+    max_concurrent_actions: Optional[int] = None
 
 
 class AgentUpdate(BaseModel):

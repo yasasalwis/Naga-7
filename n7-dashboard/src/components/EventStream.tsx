@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Activity } from 'lucide-react';
+import { Activity, Brain } from 'lucide-react';
 import './EventStream.css';
 
 type FetchStatus = 'loading' | 'ok' | 'error';
@@ -11,6 +11,7 @@ interface Event {
     event_class: string;
     severity: string;
     raw_data: any;
+    enrichments?: any;
 }
 
 export function EventStream() {
@@ -62,6 +63,12 @@ export function EventStream() {
                             </span>
                         </div>
                         <p className="event-class">{evt.event_class}</p>
+                        {evt.enrichments?.llm_recommendation && (
+                            <div className="event-llm-recommendation">
+                                <Brain size={14} className="event-llm-icon" />
+                                <strong>AI Insight:</strong> {evt.enrichments.llm_recommendation}
+                            </div>
+                        )}
                         <pre className="event-data">
                             {JSON.stringify(evt.raw_data, null, 2)}
                         </pre>

@@ -51,46 +51,58 @@ def monitor_node(state: AgentState) -> AgentState:
     return state
 
 
-def analyze_node(state: AgentState) -> AgentState:
+def build_analyze_node(thresholds: Dict[str, Any]):
     """
-    Applies local threshold rules to detect anomalies across all system metrics.
-    Sets state["status"] to "alert" or "normal" and records anomaly descriptions.
+    Factory that returns an analyze_node function bound to the given thresholds dict.
+    Thresholds keys: cpu_threshold, mem_threshold, disk_threshold, load_multiplier.
     """
-    logger.info("Sentinel: Analyzing metrics...")
-    metrics   = state.get("metrics", {})
-    anomalies = state.get("anomalies", [])
+    cpu_t  = float(thresholds.get("cpu_threshold", 80))
+    mem_t  = float(thresholds.get("mem_threshold", 85))
+    disk_t = float(thresholds.get("disk_threshold", 90))
+    load_m = float(thresholds.get("load_multiplier", 2.0))
 
-    cpu   = metrics.get("cpu_percent", 0)
-    mem   = metrics.get("memory_percent", 0)
-    disk  = metrics.get("disk_percent", 0)
-    load  = metrics.get("load_avg_1m", 0.0)
-    cores = psutil.cpu_count(logical=True) or 1
+    def analyze_node(state: AgentState) -> AgentState:
+        """
+        Applies configured threshold rules to detect anomalies across all system metrics.
+        Sets state["status"] to "alert" or "normal" and records anomaly descriptions.
+        """
+        logger.info("Sentinel: Analyzing metrics...")
+        metrics   = state.get("metrics", {})
+        anomalies = state.get("anomalies", [])
 
-    checks = [
-        (cpu  > 80,         "high",   f"High CPU usage: {cpu:.1f}%"),
-        (mem  > 85,         "high",   f"High memory usage: {mem:.1f}%"),
-        (disk > 90,         "high",   f"High disk usage: {disk:.1f}%"),
-        (load > cores * 2,  "medium", f"High load average: {load:.2f} (cores={cores})"),
-    ]
+        cpu   = metrics.get("cpu_percent", 0)
+        mem   = metrics.get("memory_percent", 0)
+        disk  = metrics.get("disk_percent", 0)
+        load  = metrics.get("load_avg_1m", 0.0)
+        cores = psutil.cpu_count(logical=True) or 1
 
-    triggered = [(sev, desc) for condition, sev, desc in checks if condition]
+        checks = [
+            (cpu  > cpu_t,          "high",   f"High CPU usage: {cpu:.1f}% (threshold={cpu_t}%)"),
+            (mem  > mem_t,          "high",   f"High memory usage: {mem:.1f}% (threshold={mem_t}%)"),
+            (disk > disk_t,         "high",   f"High disk usage: {disk:.1f}% (threshold={disk_t}%)"),
+            (load > cores * load_m, "medium", f"High load average: {load:.2f} (cores={cores}, multiplier={load_m})"),
+        ]
 
-    if triggered:
-        severity = "high" if any(s == "high" for s, _ in triggered) else "medium"
-        new_anomalies = [desc for _, desc in triggered]
-        anomalies.extend(new_anomalies)
-        state["status"]    = "alert"
-        state["severity"]  = severity
-        logger.warning(f"Anomalies detected: {new_anomalies}")
-    else:
-        state["status"]   = "normal"
-        state["severity"] = "informational"
+        triggered = [(sev, desc) for condition, sev, desc in checks if condition]
 
-    state["anomalies"] = anomalies
-    state["messages"].append(
-        f"Analysis complete. Status: {state['status']} Severity: {state.get('severity')}"
-    )
-    return state
+        if triggered:
+            severity = "high" if any(s == "high" for s, _ in triggered) else "medium"
+            new_anomalies = [desc for _, desc in triggered]
+            anomalies.extend(new_anomalies)
+            state["status"]    = "alert"
+            state["severity"]  = severity
+            logger.warning(f"Anomalies detected: {new_anomalies}")
+        else:
+            state["status"]   = "normal"
+            state["severity"] = "informational"
+
+        state["anomalies"] = anomalies
+        state["messages"].append(
+            f"Analysis complete. Status: {state['status']} Severity: {state.get('severity')}"
+        )
+        return state
+
+    return analyze_node
 
 
 def build_emit_node(event_emitter_service):
@@ -137,12 +149,15 @@ def _should_emit(state: AgentState) -> str:
     return "emit" if state.get("status") == "alert" else END
 
 
-def build_sentinel_graph(event_emitter_service=None):
+def build_sentinel_graph(event_emitter_service=None, thresholds: Dict[str, Any] = None):
     """
     Builds the LangGraph for the Sentinel Agent.
     Pass an EventEmitterService instance to enable anomaly event emission to Core.
+    Pass thresholds dict to override default detection thresholds.
     """
     workflow = StateGraph(AgentState)
+
+    analyze_node = build_analyze_node(thresholds or {})
 
     workflow.add_node("monitor", monitor_node)
     workflow.add_node("analyze", analyze_node)

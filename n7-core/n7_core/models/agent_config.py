@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Optional
 from uuid import UUID
 
@@ -30,25 +30,35 @@ class AgentConfig(Base, UUIDMixin):
     nats_url_enc: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     core_api_url_enc: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # --- Behaviour tunables (plaintext) ---
+    # --- Shared behaviour tunables (plaintext) ---
     log_level: Mapped[Optional[str]] = mapped_column(String, nullable=True)      # DEBUG, INFO, WARNING
     environment: Mapped[Optional[str]] = mapped_column(String, nullable=True)    # development, production
     zone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # --- Thresholds (plaintext JSON) ---
+    # --- Sentinel-specific config (plaintext JSON) ---
+    # detection_thresholds: {"cpu_threshold": 80, "mem_threshold": 85, "disk_threshold": 90, "load_multiplier": 2.0}
     detection_thresholds: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    # e.g. {"cpu_threshold": 90, "auth_failure_threshold": 5, "probe_interval_seconds": 5}
+    # probe_interval_seconds: how often the sentinel monitoring loop runs
     probe_interval_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # enabled_probes: which probe types are active, e.g. ["system", "network", "file", "process"]
+    enabled_probes: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
 
-    # --- Capabilities (plaintext JSON list) ---
+    # --- Striker-specific config (plaintext JSON) ---
+    # capabilities: which action types this striker is authorised to execute
     capabilities: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    # allowed_actions: explicit allowlist, subset of capabilities (defaults to all if null)
+    allowed_actions: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    # action_defaults: per-action default params, e.g. {"network_block": {"duration": 3600}}
+    action_defaults: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # max_concurrent_actions: parallelism cap (null = unlimited)
+    max_concurrent_actions: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # --- Version tracking ---
     config_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 

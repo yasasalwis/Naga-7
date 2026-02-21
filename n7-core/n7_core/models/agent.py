@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Optional
 
 from sqlalchemy import String, JSON, Integer, DateTime
@@ -19,7 +19,7 @@ class Agent(Base, UUIDMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String, default="active")  # active, unhealthy, etc.
     capabilities: Mapped[list] = mapped_column(JSON, default=list)
     zone: Mapped[str] = mapped_column(String, default="default")
-    last_heartbeat: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_heartbeat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     config_version: Mapped[int] = mapped_column(Integer, default=1)
     resource_usage: Mapped[dict] = mapped_column(JSON, default=dict)
     metadata_: Mapped[dict] = mapped_column(JSON, default=dict, name="metadata")  # metadata is reserved in SQLAlchemy

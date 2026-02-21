@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 
 from sqlalchemy import select
 
@@ -57,7 +57,7 @@ class AgentManagerService(BaseService):
                 agent = result.scalar_one_or_none()
 
                 if agent:
-                    agent.last_heartbeat = datetime.utcnow()
+                    agent.last_heartbeat = datetime.now(UTC)
                     agent.status = data.get("status", "active")
                     agent.resource_usage = data.get("resource_usage", {})
                     # Update config_version if reported?
@@ -70,7 +70,7 @@ class AgentManagerService(BaseService):
                         capabilities=data.get("capabilities", []),
                         zone=data.get("zone", "default"),
                         status=data.get("status", "active"),
-                        last_heartbeat=datetime.utcnow(),
+                        last_heartbeat=datetime.now(UTC),
                         resource_usage=data.get("resource_usage", {})
                     )
                     session.add(agent)

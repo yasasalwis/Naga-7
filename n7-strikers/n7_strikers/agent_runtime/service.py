@@ -170,15 +170,23 @@ class AgentRuntimeService:
             logging.getLogger().setLevel(remote["log_level"])
         if remote.get("zone"):
             settings.ZONE = remote["zone"]
+        # Striker-specific
         if remote.get("capabilities"):
             settings.CAPABILITIES = remote["capabilities"]
+        if "allowed_actions" in remote:
+            settings.ALLOWED_ACTIONS = remote["allowed_actions"]
+        if remote.get("action_defaults"):
+            settings.ACTION_DEFAULTS = remote["action_defaults"]
+        if "max_concurrent_actions" in remote:
+            settings.MAX_CONCURRENT_ACTIONS = remote["max_concurrent_actions"]
 
         new_version = remote.get("config_version", 0)
         self._config_version = new_version
 
         logger.info(
             f"Applied remote config version {new_version} "
-            f"(zone={settings.ZONE}, nats={settings.NATS_URL})"
+            f"(zone={settings.ZONE}, capabilities={settings.CAPABILITIES}, "
+            f"allowed_actions={settings.ALLOWED_ACTIONS})"
         )
 
     async def _config_poll_loop(self):

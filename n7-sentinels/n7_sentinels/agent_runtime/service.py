@@ -63,8 +63,11 @@ class AgentRuntimeService:
         # Publish rich node metadata to Core via NATS
         await self._publish_node_metadata()
 
-        # Build Graph (pass EventEmitterService so anomaly events flow to Core)
-        self._graph = build_sentinel_graph(event_emitter_service=self._event_emitter)
+        # Build Graph with configured thresholds
+        self._graph = build_sentinel_graph(
+            event_emitter_service=self._event_emitter,
+            thresholds=settings.DETECTION_THRESHOLDS,
+        )
 
         # Start Heartbeat Loop
         asyncio.create_task(self._heartbeat_loop())
@@ -169,7 +172,7 @@ class AgentRuntimeService:
             except Exception as e:
                 logger.error(f"Error in Agent Graph Loop: {e}")
 
-            await asyncio.sleep(10)  # Run every 10 seconds
+            await asyncio.sleep(settings.PROBE_INTERVAL_SECONDS)
 
     async def _apply_remote_config(self):
         """
@@ -200,13 +203,21 @@ class AgentRuntimeService:
             logging.getLogger().setLevel(remote["log_level"])
         if remote.get("zone"):
             settings.ZONE = remote["zone"]
+        # Sentinel-specific
+        if remote.get("probe_interval_seconds"):
+            settings.PROBE_INTERVAL_SECONDS = int(remote["probe_interval_seconds"])
+        if remote.get("detection_thresholds"):
+            settings.DETECTION_THRESHOLDS = remote["detection_thresholds"]
+        if remote.get("enabled_probes"):
+            settings.ENABLED_PROBES = remote["enabled_probes"]
 
         new_version = remote.get("config_version", 0)
         self._config_version = new_version
 
         logger.info(
             f"Applied remote config version {new_version} "
-            f"(zone={settings.ZONE}, nats={settings.NATS_URL})"
+            f"(zone={settings.ZONE}, probe_interval={settings.PROBE_INTERVAL_SECONDS}s, "
+            f"enabled_probes={settings.ENABLED_PROBES})"
         )
 
     async def _config_poll_loop(self):
@@ -232,6 +243,12 @@ class AgentRuntimeService:
                         f"{remote.get('config_version')}. Re-applying config."
                     )
                     await self._apply_remote_config()
+                    # Rebuild graph with updated thresholds
+                    self._graph = build_sentinel_graph(
+                        event_emitter_service=self._event_emitter,
+                        thresholds=settings.DETECTION_THRESHOLDS,
+                    )
+                    logger.info("Sentinel graph rebuilt with updated detection thresholds.")
             except Exception as e:
                 logger.debug(f"Config poll error (non-fatal): {e}")
 

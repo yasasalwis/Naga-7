@@ -100,3 +100,21 @@
     white-space: pre-wrap;
     font-size: 0.75rem;
 }
+
+.event-llm-recommendation {
+    background-color: rgba(138, 43, 226, 0.15);
+    /* light purple */
+    border-left: 3px solid #8a2be2;
+    padding: var(--space-xs) var(--space-sm);
+    margin-bottom: var(--space-xs);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: 0.8rem;
+}
+
+.event-llm-icon {
+    color: #8a2be2;
+}

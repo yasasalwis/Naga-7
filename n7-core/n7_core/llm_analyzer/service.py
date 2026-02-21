@@ -15,6 +15,12 @@ from ..service_manager.base_service import BaseService
 
 logger = logging.getLogger("n7-core.llm-analyzer")
 
+_EVENT_PROMPT = (
+    "You are a cybersecurity AI. Analyze the following raw event data from a Sentinel. "
+    "Provide a brief 1-2 sentence recommendation or insight regarding this single event. "
+    "Focus on whether it looks suspicious or benign. Return only plain text."
+)
+
 # System prompt sent to Ollama before each alert bundle
 _SYSTEM_PROMPT = (
     "You are a senior cybersecurity analyst AI assistant. "
@@ -68,7 +74,12 @@ class LLMAnalyzerService(BaseService):
                 cb=self._handle_analyze_request,
                 queue="llm_analyzer",
             )
-            logger.info("Subscribed to n7.llm.analyze")
+            await nats_client.nc.subscribe(
+                "n7.internal.events",
+                cb=self._handle_event_analyze_request,
+                queue="llm_analyzer_events",
+            )
+            logger.info("Subscribed to n7.llm.analyze and n7.internal.events")
         else:
             logger.warning("NATS not connected — LLMAnalyzerService subscription deferred.")
 
@@ -221,6 +232,73 @@ class LLMAnalyzerService(BaseService):
 
         except Exception as e:
             logger.error(f"LLMAnalyzerService error: {e}", exc_info=True)
+
+    async def _handle_event_analyze_request(self, msg):
+        """
+        Receives raw events and generates a brief LLM recommendation,
+        updating the Event record's enrichments.
+        """
+        import asyncio
+        import uuid
+        try:
+            try:
+                from schemas.events_pb2 import Event as ProtoEvent
+                proto_event = ProtoEvent()
+                proto_event.ParseFromString(msg.data)
+                event_id = proto_event.event_id
+                raw_data = json.loads(proto_event.raw_data) if proto_event.raw_data else {}
+            except Exception:
+                data = json.loads(msg.data.decode())
+                event_id = data.get("event_id")
+                raw_data = data.get("raw_data", {})
+                
+            if not event_id:
+                return
+
+            # Wait for EventPipeline to flush buffer
+            await asyncio.sleep(1.5)
+
+            prompt_context = json.dumps(raw_data, indent=2)
+            full_prompt = f"{_EVENT_PROMPT}\n\nEvent Data:\n{prompt_context}\n\nInsight:"
+
+            try:
+                response = await self._http_client.post(
+                    f"{self._ollama_url}/api/generate",
+                    json={
+                        "model": self._ollama_model,
+                        "prompt": full_prompt,
+                        "stream": False,
+                    },
+                    timeout=20.0,
+                )
+                response.raise_for_status()
+                llm_response = response.json().get("response", "").strip()
+            except Exception as e:
+                logger.warning(f"Ollama unavailable for event {event_id}: {e}")
+                llm_response = "Unable to reach LLM for recommendation."
+
+            from sqlalchemy import select, update
+            from ..database.session import async_session_maker
+            from ..models.event import Event as EventModel
+            
+            async with async_session_maker() as session:
+                result = await session.execute(
+                    select(EventModel).where(EventModel.event_id == uuid.UUID(event_id))
+                )
+                event = result.scalar_one_or_none()
+                if event:
+                    new_enrichments = dict(event.enrichments or {})
+                    new_enrichments["llm_recommendation"] = llm_response
+                    await session.execute(
+                        update(EventModel)
+                        .where(EventModel.event_id == uuid.UUID(event_id))
+                        .values(enrichments=new_enrichments)
+                    )
+                    await session.commit()
+                    logger.debug(f"Event {event_id} enriched with LLM recommendation.")
+
+        except Exception as e:
+            logger.error(f"Error in event LLM analysis: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # LLM call

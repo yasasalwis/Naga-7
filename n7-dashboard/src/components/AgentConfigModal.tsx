@@ -3,16 +3,30 @@ import axios from 'axios';
 import { Settings, X } from 'lucide-react';
 import './AgentConfigModal.css';
 
-interface AgentConfig {
+// Shared fields
+interface BaseConfig {
   agent_id: string;
+  agent_type: string;
   config_version: number;
   zone: string;
   log_level: string;
-  probe_interval_seconds: number | null;
-  detection_thresholds: Record<string, number>;
-  capabilities: string[];
   environment: string;
 }
+
+interface SentinelConfig extends BaseConfig {
+  probe_interval_seconds: number | null;
+  detection_thresholds: Record<string, number>;
+  enabled_probes: string[];
+}
+
+interface StrikerConfig extends BaseConfig {
+  capabilities: string[];
+  allowed_actions: string[] | null;
+  action_defaults: Record<string, Record<string, unknown>>;
+  max_concurrent_actions: number | null;
+}
+
+type AgentConfig = SentinelConfig | StrikerConfig;
 
 interface AgentConfigModalProps {
   agentId: string;
@@ -28,6 +42,9 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+const SENTINEL_PROBES = ['system', 'network', 'process', 'file'];
+const STRIKER_ACTIONS = ['network_block', 'network_unblock', 'process_kill', 'isolate_host', 'unisolate_host', 'file_quarantine'];
+
 export function AgentConfigModal({ agentId, agentType, onClose, onAuthError }: AgentConfigModalProps) {
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,12 +52,23 @@ export function AgentConfigModal({ agentId, agentType, onClose, onAuthError }: A
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Form fields
+  // Shared fields
   const [zone, setZone] = useState('');
   const [logLevel, setLogLevel] = useState('INFO');
-  const [probeInterval, setProbeInterval] = useState<string>('');
-  const [capabilitiesStr, setCapabilitiesStr] = useState('');
+
+  // Sentinel-specific
+  const [probeInterval, setProbeInterval] = useState<string>('10');
   const [thresholdsStr, setThresholdsStr] = useState('{}');
+  const [enabledProbes, setEnabledProbes] = useState<string[]>([]);
+
+  // Striker-specific
+  const [capabilities, setCapabilities] = useState<string[]>([]);
+  const [allowedActions, setAllowedActions] = useState<string[] | null>(null);
+  const [actionDefaultsStr, setActionDefaultsStr] = useState('{}');
+  const [maxConcurrent, setMaxConcurrent] = useState<string>('');
+
+  const isSentinel = agentType === 'sentinel';
+  const isStriker = agentType === 'striker';
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -49,18 +77,26 @@ export function AgentConfigModal({ agentId, agentType, onClose, onAuthError }: A
           `${API_BASE}/api/v1/agents/${agentId}/config`,
           { headers: getAuthHeaders() }
         );
-        const cfg: AgentConfig = response.data;
+        const cfg = response.data;
         setConfig(cfg);
         setZone(cfg.zone || '');
         setLogLevel(cfg.log_level || 'INFO');
-        setProbeInterval(cfg.probe_interval_seconds != null ? String(cfg.probe_interval_seconds) : '');
-        setCapabilitiesStr((cfg.capabilities || []).join(', '));
-        setThresholdsStr(JSON.stringify(cfg.detection_thresholds || {}, null, 2));
+
+        if (cfg.agent_type === 'sentinel') {
+          const s = cfg as SentinelConfig;
+          setProbeInterval(s.probe_interval_seconds != null ? String(s.probe_interval_seconds) : '10');
+          setThresholdsStr(JSON.stringify(s.detection_thresholds || {}, null, 2));
+          setEnabledProbes(s.enabled_probes || []);
+        } else if (cfg.agent_type === 'striker') {
+          const k = cfg as StrikerConfig;
+          setCapabilities(k.capabilities || []);
+          setAllowedActions(k.allowed_actions ?? null);
+          setActionDefaultsStr(JSON.stringify(k.action_defaults || {}, null, 2));
+          setMaxConcurrent(k.max_concurrent_actions != null ? String(k.max_concurrent_actions) : '');
+        }
       } catch (err: any) {
         if (err?.response?.status === 401) {
           onAuthError?.();
-        } else if (err?.response?.status === 404) {
-          setError('No configuration provisioned for this agent yet. Deploy the agent first.');
         } else {
           setError('Failed to load agent configuration.');
         }
@@ -76,26 +112,38 @@ export function AgentConfigModal({ agentId, agentType, onClose, onAuthError }: A
     setError(null);
     setSuccessMsg(null);
 
-    let parsedThresholds: Record<string, number> = {};
-    try {
-      parsedThresholds = JSON.parse(thresholdsStr);
-    } catch {
-      setError('Detection thresholds must be valid JSON.');
-      setSaving(false);
-      return;
-    }
-
-    const capabilities = capabilitiesStr
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
-
     const payload: Record<string, unknown> = {};
     if (zone) payload.zone = zone;
     if (logLevel) payload.log_level = logLevel;
-    if (probeInterval !== '') payload.probe_interval_seconds = parseInt(probeInterval, 10);
-    if (capabilities.length > 0) payload.capabilities = capabilities;
-    payload.detection_thresholds = parsedThresholds;
+
+    if (isSentinel) {
+      let parsedThresholds: Record<string, number> = {};
+      try {
+        parsedThresholds = JSON.parse(thresholdsStr);
+      } catch {
+        setError('Detection thresholds must be valid JSON.');
+        setSaving(false);
+        return;
+      }
+      if (probeInterval !== '') payload.probe_interval_seconds = parseInt(probeInterval, 10);
+      payload.detection_thresholds = parsedThresholds;
+      payload.enabled_probes = enabledProbes;
+    }
+
+    if (isStriker) {
+      let parsedDefaults: Record<string, unknown> = {};
+      try {
+        parsedDefaults = JSON.parse(actionDefaultsStr);
+      } catch {
+        setError('Action defaults must be valid JSON.');
+        setSaving(false);
+        return;
+      }
+      payload.capabilities = capabilities;
+      payload.allowed_actions = allowedActions;
+      payload.action_defaults = parsedDefaults;
+      if (maxConcurrent !== '') payload.max_concurrent_actions = parseInt(maxConcurrent, 10);
+    }
 
     try {
       const response = await axios.put(
@@ -119,6 +167,27 @@ export function AgentConfigModal({ agentId, agentType, onClose, onAuthError }: A
     }
   };
 
+  const toggleProbe = (probe: string) => {
+    setEnabledProbes(prev =>
+      prev.includes(probe) ? prev.filter(p => p !== probe) : [...prev, probe]
+    );
+  };
+
+  const toggleCapability = (action: string) => {
+    setCapabilities(prev =>
+      prev.includes(action) ? prev.filter(a => a !== action) : [...prev, action]
+    );
+  };
+
+  const toggleAllowedAction = (action: string) => {
+    setAllowedActions(prev => {
+      const current = prev ?? [...capabilities];
+      return current.includes(action)
+        ? current.filter(a => a !== action)
+        : [...current, action];
+    });
+  };
+
   return (
     <div className="acm-overlay" onClick={onClose}>
       <div className="acm-modal" onClick={e => e.stopPropagation()}>
@@ -129,7 +198,7 @@ export function AgentConfigModal({ agentId, agentType, onClose, onAuthError }: A
           </div>
           <div className="acm-subtitle">
             <span className="acm-agent-id">{agentId}</span>
-            <span className="acm-agent-type">{agentType}</span>
+            <span className={`acm-agent-type acm-agent-type--${agentType}`}>{agentType}</span>
           </div>
           <button className="acm-close" onClick={onClose} aria-label="Close">
             <X size={18} />
@@ -138,16 +207,20 @@ export function AgentConfigModal({ agentId, agentType, onClose, onAuthError }: A
 
         <div className="acm-body">
           {loading && <p className="acm-loading">Loading configuration…</p>}
-
           {error && !loading && <div className="acm-error">{error}</div>}
-
           {successMsg && <div className="acm-success">{successMsg}</div>}
 
           {config && !loading && (
             <>
               <div className="acm-version">
                 Config version: <strong>{config.config_version}</strong>
+                {config.config_version === 0 && (
+                  <span className="acm-version-hint"> — first save will provision this agent</span>
+                )}
               </div>
+
+              {/* ── Shared fields ── */}
+              <div className="acm-section-label">General</div>
 
               <div className="acm-field">
                 <label className="acm-label">Zone</label>
@@ -174,40 +247,125 @@ export function AgentConfigModal({ agentId, agentType, onClose, onAuthError }: A
                 </select>
               </div>
 
-              <div className="acm-field">
-                <label className="acm-label">Probe Interval (seconds)</label>
-                <input
-                  className="acm-input"
-                  type="number"
-                  min={1}
-                  max={300}
-                  value={probeInterval}
-                  onChange={e => setProbeInterval(e.target.value)}
-                  placeholder="e.g. 5"
-                />
-              </div>
+              {/* ── Sentinel-specific fields ── */}
+              {isSentinel && (
+                <>
+                  <div className="acm-section-label">Monitoring</div>
 
-              <div className="acm-field">
-                <label className="acm-label">Capabilities (comma-separated)</label>
-                <input
-                  className="acm-input"
-                  type="text"
-                  value={capabilitiesStr}
-                  onChange={e => setCapabilitiesStr(e.target.value)}
-                  placeholder="e.g. system_probe, file_integrity, network_monitor"
-                />
-              </div>
+                  <div className="acm-field">
+                    <label className="acm-label">Probe Interval (seconds)</label>
+                    <input
+                      className="acm-input"
+                      type="number"
+                      min={1}
+                      max={300}
+                      value={probeInterval}
+                      onChange={e => setProbeInterval(e.target.value)}
+                      placeholder="e.g. 10"
+                    />
+                  </div>
 
-              <div className="acm-field">
-                <label className="acm-label">Detection Thresholds (JSON)</label>
-                <textarea
-                  className="acm-textarea"
-                  value={thresholdsStr}
-                  onChange={e => setThresholdsStr(e.target.value)}
-                  rows={4}
-                  placeholder='{"cpu_threshold": 90, "failed_login_threshold": 5}'
-                />
-              </div>
+                  <div className="acm-field">
+                    <label className="acm-label">Enabled Probes</label>
+                    <div className="acm-checkbox-group">
+                      {SENTINEL_PROBES.map(probe => (
+                        <label key={probe} className="acm-checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={enabledProbes.includes(probe)}
+                            onChange={() => toggleProbe(probe)}
+                          />
+                          {probe}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="acm-field">
+                    <label className="acm-label">Detection Thresholds (JSON)</label>
+                    <div className="acm-field-hint">
+                      Keys: cpu_threshold, mem_threshold, disk_threshold, load_multiplier
+                    </div>
+                    <textarea
+                      className="acm-textarea"
+                      value={thresholdsStr}
+                      onChange={e => setThresholdsStr(e.target.value)}
+                      rows={5}
+                      placeholder='{"cpu_threshold": 80, "mem_threshold": 85, "disk_threshold": 90, "load_multiplier": 2.0}'
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* ── Striker-specific fields ── */}
+              {isStriker && (
+                <>
+                  <div className="acm-section-label">Response Actions</div>
+
+                  <div className="acm-field">
+                    <label className="acm-label">Capabilities</label>
+                    <div className="acm-field-hint">Action types this striker is provisioned to execute.</div>
+                    <div className="acm-checkbox-group">
+                      {STRIKER_ACTIONS.map(action => (
+                        <label key={action} className="acm-checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={capabilities.includes(action)}
+                            onChange={() => toggleCapability(action)}
+                          />
+                          {action}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="acm-field">
+                    <label className="acm-label">Allowed Actions</label>
+                    <div className="acm-field-hint">
+                      Restrict which capabilities can be dispatched at runtime.
+                      Leave all unchecked to allow all capabilities.
+                    </div>
+                    <div className="acm-checkbox-group">
+                      {capabilities.map(action => (
+                        <label key={action} className="acm-checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={allowedActions === null || allowedActions.includes(action)}
+                            onChange={() => toggleAllowedAction(action)}
+                          />
+                          {action}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="acm-field">
+                    <label className="acm-label">Action Defaults (JSON)</label>
+                    <div className="acm-field-hint">
+                      Default params merged into each action command. Command params take precedence.
+                    </div>
+                    <textarea
+                      className="acm-textarea"
+                      value={actionDefaultsStr}
+                      onChange={e => setActionDefaultsStr(e.target.value)}
+                      rows={4}
+                      placeholder='{"network_block": {"duration": 3600}}'
+                    />
+                  </div>
+
+                  <div className="acm-field">
+                    <label className="acm-label">Max Concurrent Actions</label>
+                    <input
+                      className="acm-input"
+                      type="number"
+                      min={1}
+                      value={maxConcurrent}
+                      onChange={e => setMaxConcurrent(e.target.value)}
+                      placeholder="Leave empty for unlimited"
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
