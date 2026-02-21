@@ -7,7 +7,7 @@ Populated asynchronously by LLMAnalyzerService alongside existing llm_narrative.
 Nullable so existing alerts are unaffected.
 
 Revision ID: c3d4e5f6a7b8
-Revises: a1b2c3d4e5f6
+Revises: b2c3d4e5f6a7
 Create Date: 2026-02-21 00:00:00.000000
 
 Ref: TDD Section 4.X LLM Analyzer, SRS FR-C010
@@ -20,7 +20,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'c3d4e5f6a7b8'
-down_revision: Union[str, None] = 'a1b2c3d4e5f6'
+down_revision: Union[str, None] = 'b2c3d4e5f6a7'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

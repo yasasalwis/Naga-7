@@ -8,8 +8,8 @@ engine = create_async_engine(
     echo=settings.DEBUG,
     future=True,
     pool_pre_ping=True,  # Check connection liveness before checkout
-    pool_size=20,  # Production tuning
-    max_overflow=10
+    pool_size=100,  # Production tuning: supports 1000-node deployments
+    max_overflow=50
 )
 
 # Session Factory

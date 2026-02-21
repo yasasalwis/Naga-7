@@ -215,7 +215,59 @@ class PlaybookEngine(BaseService):
 
         except Exception as e:
             logger.error(f"Error executing playbook {playbook_id}: {e}", exc_info=True)
-            # TODO: Implement rollback logic for executed_actions
+            if executed_actions:
+                logger.warning(
+                    f"Rolling back {len(executed_actions)} action(s) for playbook {playbook_id}..."
+                )
+                for action_entry in reversed(executed_actions):
+                    await self._rollback_action(action_entry)
+
+    async def _rollback_action(self, action_entry: dict):
+        """
+        Dispatch a generic reversal for an executed action.
+        Maps action_type → inverse action_type and updates DB status to 'rolled_back'.
+        """
+        REVERSAL_MAP = {
+            "network_block":    "network_unblock",
+            "block_ip":         "unblock_ip",
+            "isolate_host":     "unisolate_host",
+            "kill_process":     "noop",        # irreversible — mark only
+            "collect_evidence": "noop",
+            "notify":           "noop",
+        }
+        import uuid as _uuid
+        action_id   = action_entry.get("action_id")
+        action_type = action_entry.get("action_type", "")
+        reversal    = REVERSAL_MAP.get(action_type, "noop")
+
+        try:
+            db_action = None
+            async with async_session_maker() as session:
+                db_action = await session.get(ActionModel, _uuid.UUID(action_id))
+                if db_action:
+                    db_action.status = "rolled_back"
+                    await session.commit()
+
+            if reversal != "noop" and nats_client.nc and db_action:
+                proto = ProtoAction(
+                    action_id=str(_uuid.uuid4()),
+                    incident_id=str(db_action.incident_id) if db_action.incident_id else "",
+                    action_type=reversal,
+                    parameters=json.dumps({"original_action_id": action_id}),
+                    status="queued",
+                )
+                await nats_client.nc.publish(
+                    f"n7.actions.{reversal}",
+                    proto.SerializeToString()
+                )
+                logger.info(f"Dispatched rollback action '{reversal}' for {action_id}")
+            else:
+                logger.info(
+                    f"Action type '{action_type}' has no reversal (noop). "
+                    f"action_id={action_id} marked rolled_back in DB."
+                )
+        except Exception as rb_err:
+            logger.error(f"Rollback failed for action {action_id}: {rb_err}", exc_info=True)
 
     def _evaluate_conditions(self, conditions: List[str], context: Dict) -> bool:
         """

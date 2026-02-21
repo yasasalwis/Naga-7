@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import logging
@@ -9,17 +10,6 @@ from ..database.session import async_session_maker
 from ..messaging.nats_client import nats_client
 from ..models.event import Event as EventModel
 from ..service_manager.base_service import BaseService
-
-# Import models
-# We don't have an Event model yet? The TDD says "Persist all raw and enriched events to a time-series data store".
-# I should create an Event model in models/event.py? Or just use a raw execution for TimescaleDB.
-# For simplicity and speed, let's assume we create an Event model or just log it for now.
-# Wait, I should create the Event model first? Yes.
-# But I am in the middle of this file creation.
-# I'll add a TODO or basic logging, then fix model.
-# Actually I'll use raw SQL or just not save purely yet? 
-# No, let's do it right. I'll import a (to be created) Event model.
-# from ..models.event import EventModel
 
 logger = logging.getLogger("n7-core.event-pipeline")
 
@@ -35,6 +25,11 @@ class EventPipelineService(BaseService):
         self._running = False
         self.dedup_window = 60  # seconds
         self.enrichment_service = None  # Injected via set_enrichment_service()
+        self._buffer: list = []
+        self._flush_lock = asyncio.Lock()
+        self._flush_task: asyncio.Task | None = None
+        self.FLUSH_INTERVAL = 1.0    # seconds
+        self.FLUSH_BATCH_SIZE = 500  # items
 
     def set_enrichment_service(self, enrichment_service):
         """Inject EnrichmentService (which in turn holds ThreatIntelService)."""
@@ -55,9 +50,34 @@ class EventPipelineService(BaseService):
         else:
             logger.warning("NATS not connected, EventPipelineService waiting for connection...")
 
+        self._flush_task = asyncio.create_task(self._flush_loop())
+
     async def stop(self):
         self._running = False
+        if self._flush_task:
+            self._flush_task.cancel()
+            try:
+                await self._flush_task
+            except asyncio.CancelledError:
+                pass
+        await self._flush_buffer()  # drain remaining events
         logger.info("EventPipelineService stopped.")
+
+    async def _flush_loop(self):
+        while self._running:
+            await asyncio.sleep(self.FLUSH_INTERVAL)
+            await self._flush_buffer()
+
+    async def _flush_buffer(self):
+        async with self._flush_lock:
+            if not self._buffer:
+                return
+            batch = self._buffer[:]
+            self._buffer.clear()
+        async with async_session_maker() as session:
+            session.add_all(batch)
+            await session.commit()
+        logger.debug(f"Flushed {len(batch)} events to DB.")
 
     async def _is_duplicate(self, event_dict: dict) -> bool:
         """
@@ -125,27 +145,27 @@ class EventPipelineService(BaseService):
                 raw_data["ioc_matched"] = True
                 raw_data["ioc_matches"] = enrichments["threat_intel_matches"]
 
-            # 3. Persistence
-            async with async_session_maker() as session:
-                ts = datetime.utcnow()
-                if timestamp_str:
-                    try:
-                        ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                    except Exception:
-                        pass
+            # 3. Persistence — push to buffer for batch flush
+            ts = datetime.utcnow()
+            if timestamp_str:
+                try:
+                    ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                except Exception:
+                    pass
 
-                db_event = EventModel(
-                    event_id=event_id,
-                    timestamp=ts,
-                    sentinel_id=sentinel_id,
-                    event_class=event_class,
-                    severity=severity,
-                    raw_data=raw_data,
-                    enrichments=enrichments,
-                    mitre_techniques=event_dict.get("mitre_techniques", [])
-                )
-                session.add(db_event)
-                await session.commit()
+            db_event = EventModel(
+                event_id=event_id,
+                timestamp=ts,
+                sentinel_id=sentinel_id,
+                event_class=event_class,
+                severity=severity,
+                raw_data=raw_data,
+                enrichments=enrichments,
+                mitre_techniques=event_dict.get("mitre_techniques", [])
+            )
+            self._buffer.append(db_event)
+            if len(self._buffer) >= self.FLUSH_BATCH_SIZE:
+                asyncio.create_task(self._flush_buffer())
 
             # 4. Forward to Threat Correlation (via NATS subject) as Protobuf
             if nats_client.nc:

@@ -31,6 +31,7 @@ async def main():
     # Initialize Core Services
     agent_runtime = AgentRuntimeService()
     event_emitter = EventEmitterService()
+    agent_runtime.set_event_emitter(event_emitter)  # Wire emitter for graph anomaly dispatch
     detection_engine = DetectionEngineService(event_emitter)
     deception_engine = DeceptionEngineService(event_emitter)
 

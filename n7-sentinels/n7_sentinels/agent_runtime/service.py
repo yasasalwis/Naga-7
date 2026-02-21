@@ -31,6 +31,7 @@ class AgentRuntimeService:
         self._graph = None
         self._nats_client = None
         self._config_version: int = 0
+        self._event_emitter = None  # Injected via set_event_emitter()
 
         # Collect rich node metadata once at startup (used in registration + NATS publish)
         self._node_metadata = collect_node_metadata()
@@ -40,6 +41,10 @@ class AgentRuntimeService:
 
         # Attempt to restore a previously Core-assigned agent ID from disk
         self._agent_id = load_persisted_agent_id()
+
+    def set_event_emitter(self, event_emitter):
+        """Inject EventEmitterService so the agent graph can emit anomaly events to Core."""
+        self._event_emitter = event_emitter
 
     async def start(self):
         self._running = True
@@ -58,8 +63,8 @@ class AgentRuntimeService:
         # Publish rich node metadata to Core via NATS
         await self._publish_node_metadata()
 
-        # Build Graph
-        self._graph = build_sentinel_graph()
+        # Build Graph (pass EventEmitterService so anomaly events flow to Core)
+        self._graph = build_sentinel_graph(event_emitter_service=self._event_emitter)
 
         # Start Heartbeat Loop
         asyncio.create_task(self._heartbeat_loop())
