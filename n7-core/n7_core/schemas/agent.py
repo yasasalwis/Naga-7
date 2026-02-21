@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -29,6 +29,7 @@ class Agent(AgentBase):
     last_heartbeat: datetime
     config_version: int
     resource_usage: Dict[str, Any]
+    node_metadata: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -50,6 +51,25 @@ class Agent(AgentBase):
                 "last_heartbeat": data.last_heartbeat,
                 "config_version": data.config_version,
                 "resource_usage": data.resource_usage,
+                "node_metadata": data.node_metadata,
             }
             return result
         return data
+
+
+class AgentConfigUpdate(BaseModel):
+    """Request body for PUT /agents/{agent_id}/config — user-authenticated."""
+    zone: Optional[str] = None
+    log_level: Optional[str] = None
+    probe_interval_seconds: Optional[int] = None
+    detection_thresholds: Optional[Dict[str, Any]] = None
+    capabilities: Optional[List[str]] = None
+
+
+class AgentUpdate(BaseModel):
+    """Request body for PUT /agents/{agent_id} — user-authenticated."""
+    agent_subtype: Optional[str] = None
+    zone: Optional[str] = None
+    capabilities: Optional[List[str]] = None
+    detection_thresholds: Optional[Dict[str, Any]] = None
+    probe_interval_seconds: Optional[int] = None

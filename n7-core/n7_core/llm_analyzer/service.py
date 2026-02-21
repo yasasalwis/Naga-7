@@ -19,11 +19,15 @@ logger = logging.getLogger("n7-core.llm-analyzer")
 _SYSTEM_PROMPT = (
     "You are a senior cybersecurity analyst AI assistant. "
     "Analyze the security alert bundle provided and return ONLY a JSON object "
-    "(no markdown, no explanation outside the JSON) with exactly three keys:\n"
+    "(no markdown, no explanation outside the JSON) with exactly four keys:\n"
     "  \"narrative\": a concise 2-4 sentence plain-English description of the attack,\n"
     "  \"mitre_tactic\": the most relevant MITRE ATT&CK tactic name (e.g. 'Lateral Movement'),\n"
     "  \"mitre_technique\": the most relevant technique ID and name "
-    "(e.g. 'T1021 - Remote Services').\n"
+    "(e.g. 'T1021 - Remote Services'),\n"
+    "  \"remediation\": a numbered list of 3-5 specific, actionable remediation steps as a single "
+    "string with steps separated by newlines "
+    "(e.g. '1. Isolate the affected host immediately.\\n2. Reset compromised credentials.\\n"
+    "3. Review firewall rules for unauthorized outbound connections.').\n"
     "Focus on what the attacker likely did, why it is dangerous, and what MITRE stage it represents."
 )
 
@@ -164,6 +168,7 @@ class LLMAnalyzerService(BaseService):
             llm_narrative: str = narrative_data.get("narrative", "")
             llm_mitre_tactic: str = narrative_data.get("mitre_tactic", "")
             llm_mitre_technique: str = narrative_data.get("mitre_technique", "")
+            llm_remediation: str = narrative_data.get("remediation", "")
 
             # Persist LLM enrichment to the alerts table
             await self._persist_narrative(
@@ -171,6 +176,7 @@ class LLMAnalyzerService(BaseService):
                 llm_narrative=llm_narrative,
                 llm_mitre_tactic=llm_mitre_tactic,
                 llm_mitre_technique=llm_mitre_technique,
+                llm_remediation=llm_remediation,
             )
 
             # Build enriched reasoning for the alert proto
@@ -259,6 +265,7 @@ class LLMAnalyzerService(BaseService):
                 "narrative": result.get("narrative") or self._fallback_narrative(reasoning),
                 "mitre_tactic": result.get("mitre_tactic", ""),
                 "mitre_technique": result.get("mitre_technique", ""),
+                "remediation": result.get("remediation", ""),
             }
         except Exception as e:
             logger.warning(f"Ollama unavailable ({type(e).__name__}: {e}) — using fallback narrative.")
@@ -266,6 +273,7 @@ class LLMAnalyzerService(BaseService):
                 "narrative": self._fallback_narrative(reasoning),
                 "mitre_tactic": ", ".join(reasoning.get("mitre_tactics", [])),
                 "mitre_technique": ", ".join(reasoning.get("mitre_techniques", [])),
+                "remediation": self._fallback_remediation(reasoning),
             }
 
     def _fallback_narrative(self, reasoning: dict) -> str:
@@ -282,6 +290,17 @@ class LLMAnalyzerService(BaseService):
             f"Manual analyst review recommended."
         )
 
+    def _fallback_remediation(self, reasoning: dict) -> str:
+        """Rule-based fallback remediation steps when Ollama is not reachable."""
+        rule = reasoning.get("rule", "Unknown rule")
+        return (
+            f"1. Investigate the triggered rule: '{rule}'.\n"
+            "2. Review system and application logs on all affected hosts for anomalous activity.\n"
+            "3. Isolate any confirmed compromised hosts from the network pending investigation.\n"
+            "4. Apply relevant firewall rules or access control restrictions as a precaution.\n"
+            "5. Escalate to your security team and document findings in your incident response system."
+        )
+
     # ------------------------------------------------------------------
     # DB persistence
     # ------------------------------------------------------------------
@@ -292,6 +311,7 @@ class LLMAnalyzerService(BaseService):
         llm_narrative: str,
         llm_mitre_tactic: str,
         llm_mitre_technique: str,
+        llm_remediation: str = "",
     ):
         """Update the alert row with LLM-generated fields."""
         try:
@@ -304,6 +324,7 @@ class LLMAnalyzerService(BaseService):
                         llm_narrative=llm_narrative,
                         llm_mitre_tactic=llm_mitre_tactic,
                         llm_mitre_technique=llm_mitre_technique,
+                        llm_remediation=llm_remediation,
                     )
                 )
                 await session.commit()

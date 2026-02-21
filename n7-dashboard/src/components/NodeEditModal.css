@@ -1,0 +1,247 @@
+/* ── NodeEditModal ────────────────────────────────────────────────────── */
+
+.nem-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.nem-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.4));
+  width: 560px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.nem-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-color);
+  position: relative;
+}
+
+.nem-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.nem-icon {
+  color: var(--accent-primary);
+}
+
+.nem-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.nem-ip {
+  font-family: monospace;
+  color: var(--text-secondary);
+}
+
+.nem-agent-pill {
+  font-size: 0.7rem;
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent-primary);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+  border-radius: var(--radius-full);
+  padding: 1px 8px;
+  text-transform: capitalize;
+}
+
+.nem-close {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+}
+
+.nem-close:hover {
+  color: var(--text-primary);
+}
+
+/* ── Body ── */
+.nem-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.nem-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-primary);
+  margin: 4px 0 2px;
+}
+
+.nem-config-version {
+  color: var(--text-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.nem-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: var(--space-xs) 0;
+}
+
+.nem-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.nem-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nem-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.nem-input,
+.nem-select,
+.nem-textarea {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color var(--transition-fast);
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.nem-input:focus,
+.nem-select:focus,
+.nem-textarea:focus {
+  border-color: var(--accent-primary);
+}
+
+.nem-input--port {
+  width: 100%;
+}
+
+.nem-textarea {
+  resize: vertical;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.nem-loading {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.nem-error {
+  font-size: 0.8rem;
+  color: var(--accent-error);
+  background: rgba(248, 81, 73, 0.08);
+  border: 1px solid rgba(248, 81, 73, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.nem-agent-config-error {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.nem-success {
+  font-size: 0.8rem;
+  color: var(--accent-success);
+  background: rgba(63, 185, 80, 0.08);
+  border: 1px solid rgba(63, 185, 80, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+/* ── Footer ── */
+.nem-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.nem-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), opacity var(--transition-fast);
+  border: none;
+}
+
+.nem-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nem-btn--primary {
+  background: var(--accent-primary);
+  color: #fff;
+}
+
+.nem-btn--primary:hover:not(:disabled) {
+  background: var(--accent-primary-hover, var(--accent-primary));
+  opacity: 0.9;
+}
+
+.nem-btn--secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.nem-btn--secondary:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}

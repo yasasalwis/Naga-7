@@ -32,7 +32,12 @@ class AgentManagerService(BaseService):
                 cb=self.handle_heartbeat,
                 queue="agent_manager"
             )
-            logger.info("Subscribed to n7.heartbeat.>")
+            await nats_client.nc.subscribe(
+                "n7.node.metadata.>",
+                cb=self.handle_node_metadata,
+                queue="agent_manager"
+            )
+            logger.info("Subscribed to n7.heartbeat.> and n7.node.metadata.>")
         else:
             logger.warning("NATS not connected.")
 
@@ -75,3 +80,39 @@ class AgentManagerService(BaseService):
 
         except Exception as e:
             logger.error(f"Error processing heartbeat: {e}")
+
+    async def handle_node_metadata(self, msg):
+        """Persist rich node metadata published by a Sentinel on restart."""
+        try:
+            data = json.loads(msg.data.decode())
+            agent_id = data.get("agent_id")
+            if not agent_id:
+                logger.warning("handle_node_metadata: missing agent_id in message")
+                return
+
+            # Store everything except agent_id itself as the metadata blob
+            metadata = {k: v for k, v in data.items() if k != "agent_id"}
+
+            async with async_session_maker() as session:
+                stmt = select(Agent).where(Agent.id == agent_id)
+                result = await session.execute(stmt)
+                agent = result.scalar_one_or_none()
+
+                if agent:
+                    agent.node_metadata = metadata
+                    await session.commit()
+                    logger.info(
+                        f"Stored node metadata for agent {agent_id}: "
+                        f"host={metadata.get('hostname')}, OS={metadata.get('os_name')} "
+                        f"{metadata.get('kernel_version')}, "
+                        f"CPU={metadata.get('cpu_cores')} cores, "
+                        f"RAM={metadata.get('ram_total_mb')} MB"
+                    )
+                else:
+                    logger.warning(
+                        f"handle_node_metadata: agent {agent_id} not found in DB — "
+                        "metadata discarded (agent may not have registered yet)"
+                    )
+
+        except Exception as e:
+            logger.error(f"Error processing node metadata: {e}")

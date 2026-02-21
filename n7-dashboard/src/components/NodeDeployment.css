@@ -526,3 +526,31 @@
   padding: var(--space-md) var(--space-lg);
   border-top: 1px solid var(--border-color);
 }
+
+/* ── Actions column ──────────────────────────────────────────────────── */
+.nd-th--actions,
+.nd-td--actions {
+  width: 72px;
+  text-align: right;
+  padding-right: 10px;
+}
+
+.nd-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.nd-edit-btn:hover {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}

@@ -46,6 +46,7 @@ async def list_alerts(
             "llm_narrative": a.llm_narrative,
             "llm_mitre_tactic": a.llm_mitre_tactic,
             "llm_mitre_technique": a.llm_mitre_technique,
+            "llm_remediation": a.llm_remediation,
         }
         for a in alerts
     ]
@@ -78,4 +79,5 @@ async def get_alert(alert_id: str):
         "llm_narrative": a.llm_narrative,
         "llm_mitre_tactic": a.llm_mitre_tactic,
         "llm_mitre_technique": a.llm_mitre_technique,
+        "llm_remediation": a.llm_remediation,
     }

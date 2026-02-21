@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import String, JSON, Integer
+from sqlalchemy import String, JSON, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database.base import Base, UUIDMixin, TimestampMixin
@@ -30,3 +30,4 @@ class Alert(Base, UUIDMixin, TimestampMixin):
     llm_narrative: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     llm_mitre_tactic: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     llm_mitre_technique: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    llm_remediation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

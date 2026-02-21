@@ -25,6 +25,17 @@ class InfraNodeCreate(BaseModel):
     ssh_key_path: Optional[str] = None
 
 
+class InfraNodeUpdate(BaseModel):
+    """Request body for PUT /deployment/nodes/{node_id} — user-authenticated."""
+    hostname: Optional[str] = None
+    os_type: Optional[Literal["linux", "macos", "windows", "unknown"]] = None
+    ssh_port: Optional[int] = None
+    winrm_port: Optional[int] = None
+    ssh_username: Optional[str] = None
+    ssh_password: Optional[str] = None   # plaintext — encrypted before storage
+    ssh_key_path: Optional[str] = None
+
+
 class DeployRequest(BaseModel):
     agent_type: Literal["sentinel", "striker"]
     agent_subtype: str = "system"

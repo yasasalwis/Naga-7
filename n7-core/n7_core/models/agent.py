@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import String, JSON, Integer, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
@@ -25,3 +26,4 @@ class Agent(Base, UUIDMixin, TimestampMixin):
     api_key_prefix: Mapped[str] = mapped_column(String(16), nullable=False,
                                                 index=True)  # First 16 chars for O(1) lookup
     api_key_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    node_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=None)

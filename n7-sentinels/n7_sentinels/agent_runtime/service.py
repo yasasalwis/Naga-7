@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import secrets
@@ -10,6 +11,7 @@ from .config import settings
 from .graph import build_sentinel_graph, AgentState
 from ..agent_id import load_persisted_agent_id, set_agent_id
 from ..config_loader import fetch_remote_config
+from ..metadata_collector import collect_node_metadata
 
 logger = logging.getLogger("n7-sentinel.agent-runtime")
 
@@ -27,6 +29,11 @@ class AgentRuntimeService:
         self._api_key = None  # Agent's unique API key
         self._agent_id = None
         self._graph = None
+        self._nats_client = None
+        self._config_version: int = 0
+
+        # Collect rich node metadata once at startup (used in registration + NATS publish)
+        self._node_metadata = collect_node_metadata()
 
         # Load or generate API key on initialization
         self._api_key = self._load_or_generate_api_key()
@@ -45,6 +52,12 @@ class AgentRuntimeService:
         # Pull centralized config from Core DB and apply it
         await self._apply_remote_config()
 
+        # Connect to NATS for push-based heartbeats and metadata publish
+        await self._connect_nats()
+
+        # Publish rich node metadata to Core via NATS
+        await self._publish_node_metadata()
+
         # Build Graph
         self._graph = build_sentinel_graph()
 
@@ -52,12 +65,52 @@ class AgentRuntimeService:
         asyncio.create_task(self._heartbeat_loop())
         # Start Agent Graph Loop
         asyncio.create_task(self._agent_loop())
+        # Start Config Poll Loop (checks for config version changes every 60s)
+        asyncio.create_task(self._config_poll_loop())
 
     async def stop(self):
         self._running = False
+        if self._nats_client:
+            try:
+                await self._nats_client.nc.close()
+            except Exception:
+                pass
         if self._session:
             await self._session.close()
         logger.info("AgentRuntimeService stopped.")
+
+    async def _connect_nats(self):
+        """Connect to NATS for push-based heartbeats. Fails gracefully if unavailable."""
+        if not settings.NATS_URL:
+            logger.warning("NATS_URL not set — NATS heartbeats disabled, using HTTP fallback.")
+            return
+        try:
+            from ..messaging.nats_client import nats_client as _nc
+            self._nats_client = _nc
+            await self._nats_client.connect()
+            logger.info(f"Connected to NATS at {settings.NATS_URL}")
+        except Exception as e:
+            logger.warning(f"NATS connection failed: {e} — heartbeats will use HTTP fallback.")
+            self._nats_client = None
+
+    async def _publish_node_metadata(self):
+        """Publish rich node metadata to Core via NATS on every restart."""
+        if not self._agent_id:
+            return
+        if not self._nats_client or not self._nats_client.nc.is_connected:
+            logger.debug("NATS not connected — node metadata will be sent via registration payload only.")
+            return
+        try:
+            subject = f"n7.node.metadata.{self._agent_id}"
+            payload = json.dumps({"agent_id": self._agent_id, **self._node_metadata}).encode()
+            await self._nats_client.nc.publish(subject, payload)
+            logger.info(
+                f"Published node metadata to {subject} "
+                f"(host={self._node_metadata.get('hostname')}, "
+                f"OS={self._node_metadata.get('os_name')} {self._node_metadata.get('kernel_version')})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to publish node metadata: {e}")
 
     def _load_or_generate_api_key(self) -> str:
         """
@@ -143,10 +196,39 @@ class AgentRuntimeService:
         if remote.get("zone"):
             settings.ZONE = remote["zone"]
 
+        new_version = remote.get("config_version", 0)
+        self._config_version = new_version
+
         logger.info(
-            f"Applied remote config version {remote.get('config_version', '?')} "
+            f"Applied remote config version {new_version} "
             f"(zone={settings.ZONE}, nats={settings.NATS_URL})"
         )
+
+    async def _config_poll_loop(self):
+        """
+        Periodically checks if config_version has changed on Core.
+        Re-applies config when a newer version is detected.
+        Runs every 60 seconds.
+        """
+        while self._running:
+            await asyncio.sleep(60)
+            if not self._agent_id:
+                continue
+            try:
+                remote = await fetch_remote_config(
+                    core_api_url=settings.CORE_API_URL,
+                    agent_id=self._agent_id,
+                    api_key=self._api_key,
+                    session=self._session,
+                )
+                if remote and remote.get("config_version", 0) > self._config_version:
+                    logger.info(
+                        f"Config version changed: {self._config_version} → "
+                        f"{remote.get('config_version')}. Re-applying config."
+                    )
+                    await self._apply_remote_config()
+            except Exception as e:
+                logger.debug(f"Config poll error (non-fatal): {e}")
 
     async def _authenticate(self):
         """
@@ -158,7 +240,7 @@ class AgentRuntimeService:
             "agent_subtype": settings.AGENT_SUBTYPE,
             "zone": settings.ZONE,
             "capabilities": ["system_probe", "file_integrity"],  # Dynamic in real world
-            "metadata": {"hostname": "localhost"},
+            "metadata": self._node_metadata,
             "api_key": self._api_key
         }
         timeout = aiohttp.ClientTimeout(total=10)
@@ -192,41 +274,54 @@ class AgentRuntimeService:
 
     async def _heartbeat_loop(self):
         """
-        Sends periodic heartbeats to Core with API key authentication.
-        On 404 the agent record is gone from Core (e.g. DB wipe); re-register.
-        On 403 the in-memory agent_id is stale (e.g. Core restarted while this
-        process was still running); re-register to re-sync the correct id.
+        Sends periodic heartbeats to Core.
+        Prefers NATS publish (push-based, low overhead at scale).
+        Falls back to HTTP POST if NATS is not connected.
+
+        NATS topic: n7.heartbeat.sentinel.{agent_id}
+        HTTP fallback: POST /agents/heartbeat (kept for graceful degradation)
         """
         while self._running:
             try:
-                if hasattr(self, '_agent_id') and self._agent_id:
+                if self._agent_id:
                     payload = {
                         "agent_id": self._agent_id,
+                        "agent_type": settings.AGENT_TYPE,
+                        "agent_subtype": settings.AGENT_SUBTYPE,
+                        "zone": settings.ZONE,
                         "status": "active",
                         "resource_usage": {"cpu": 10, "memory": 20}  # Placeholder
                     }
-                    # Authenticate with API key header
-                    headers = {"X-Agent-API-Key": self._api_key}
-                    async with self._session.post(
-                            f"{settings.CORE_API_URL}/agents/heartbeat",
-                            json=payload,
-                            headers=headers
-                    ) as resp:
-                        if resp.status == 200:
-                            logger.debug("Heartbeat sent successfully")
-                        elif resp.status == 404:
-                            # Agent record missing on Core — re-register
-                            logger.warning("Heartbeat 404: agent not found on Core, re-registering...")
-                            self._agent_id = None
-                            await self._authenticate()
-                        elif resp.status == 403:
-                            # Agent ID mismatch — in-memory id is stale; re-sync via register
-                            logger.warning("Heartbeat 403: agent ID mismatch, re-registering to sync...")
-                            self._agent_id = None
-                            await self._authenticate()
-                        else:
-                            text = await resp.text()
-                            logger.warning(f"Heartbeat failed: {resp.status} - {text}")
+
+                    if self._nats_client and self._nats_client.nc.is_connected:
+                        # Push-based via NATS — preferred path (scales to 400+ nodes)
+                        subject = f"n7.heartbeat.sentinel.{self._agent_id}"
+                        await self._nats_client.nc.publish(
+                            subject,
+                            json.dumps(payload).encode()
+                        )
+                        logger.debug(f"Heartbeat published to NATS: {subject}")
+                    else:
+                        # HTTP fallback
+                        headers = {"X-Agent-API-Key": self._api_key}
+                        async with self._session.post(
+                                f"{settings.CORE_API_URL}/agents/heartbeat",
+                                json=payload,
+                                headers=headers
+                        ) as resp:
+                            if resp.status == 200:
+                                logger.debug("Heartbeat sent via HTTP fallback")
+                            elif resp.status == 404:
+                                logger.warning("Heartbeat 404: agent not found on Core, re-registering...")
+                                self._agent_id = None
+                                await self._authenticate()
+                            elif resp.status == 403:
+                                logger.warning("Heartbeat 403: agent ID mismatch, re-registering to sync...")
+                                self._agent_id = None
+                                await self._authenticate()
+                            else:
+                                text = await resp.text()
+                                logger.warning(f"Heartbeat failed: {resp.status} - {text}")
             except Exception as e:
                 logger.error(f"Heartbeat error: {e}")
 

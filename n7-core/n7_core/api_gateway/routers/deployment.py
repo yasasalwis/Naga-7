@@ -2,13 +2,14 @@ import logging
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy import select
 
+from ..auth import get_current_active_user
 from ...database.session import async_session_maker
 from ...models.infra_node import InfraNode as InfraNodeModel
 from ...schemas.infra_node import (
-    InfraNode, InfraNodeCreate, DeployRequest, ScanRequest, ScanResult, DeployResponse
+    InfraNode, InfraNodeCreate, InfraNodeUpdate, DeployRequest, ScanRequest, ScanResult, DeployResponse
 )
 from ...deployment.service import DeploymentService
 
@@ -83,6 +84,44 @@ async def add_node(node_in: InfraNodeCreate):
             discovery_method="manual",
         )
         session.add(node)
+        await session.commit()
+        await session.refresh(node)
+        return node
+
+
+@router.put("/nodes/{node_id}", response_model=InfraNode)
+async def update_node(
+    node_id: UUID,
+    node_update: InfraNodeUpdate,
+    current_user=Depends(get_current_active_user),
+):
+    """
+    Update InfraNode registry metadata (hostname, os_type, SSH credentials).
+    User-authenticated. Does NOT re-deploy; only updates the stored node record.
+    """
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(InfraNodeModel).where(InfraNodeModel.id == node_id)
+        )
+        node = result.scalar_one_or_none()
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+
+        if node_update.hostname is not None:
+            node.hostname = node_update.hostname
+        if node_update.os_type is not None:
+            node.os_type = node_update.os_type
+        if node_update.ssh_port is not None:
+            node.ssh_port = node_update.ssh_port
+        if node_update.winrm_port is not None:
+            node.winrm_port = node_update.winrm_port
+        if node_update.ssh_username is not None:
+            node.ssh_username = node_update.ssh_username
+        if node_update.ssh_password is not None:
+            node.ssh_password_enc = _deployment_service.encrypt_credential(node_update.ssh_password)
+        if node_update.ssh_key_path is not None:
+            node.ssh_key_path = node_update.ssh_key_path
+
         await session.commit()
         await session.refresh(node)
         return node

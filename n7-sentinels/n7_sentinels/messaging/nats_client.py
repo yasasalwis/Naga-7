@@ -2,15 +2,17 @@ import logging
 
 from nats.aio.client import Client as NATS
 
-from ..config import settings
+from ..agent_runtime.config import settings
 
-logger = logging.getLogger("n7-striker.messaging")
+logger = logging.getLogger("n7-sentinel.messaging")
 
 
 class NATSClient:
     """
-    NATS Client wrapper for Striker agents.
+    NATS Client wrapper for Sentinel agents.
     Provides connection management and auto-reconnect support.
+    Used for push-based heartbeats (n7.heartbeat.sentinel.{agent_id})
+    and node metadata publish (n7.node.metadata.{agent_id}).
     """
 
     def __init__(self):

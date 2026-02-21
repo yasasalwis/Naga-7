@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { AlertTriangle, Brain, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Brain, ShieldAlert, Wrench } from 'lucide-react';
 import './AlertPanel.css';
 
 interface AlertReasoning {
@@ -27,6 +27,7 @@ interface Alert {
     llm_narrative: string | null;
     llm_mitre_tactic: string | null;
     llm_mitre_technique: string | null;
+    llm_remediation: string | null;
 }
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -52,6 +53,15 @@ function isHoneytoken(alert: Alert): boolean {
 export function AlertPanel() {
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [expandedRemediation, setExpandedRemediation] = useState<Set<string>>(new Set());
+
+    const toggleRemediation = (alertId: string) => {
+        setExpandedRemediation(prev => {
+            const next = new Set(prev);
+            next.has(alertId) ? next.delete(alertId) : next.add(alertId);
+            return next;
+        });
+    };
 
     useEffect(() => {
         const fetchAlerts = async () => {
@@ -165,6 +175,30 @@ export function AlertPanel() {
                                                 {alert.llm_mitre_technique}
                                             </span>
                                         )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* LLM Remediation Steps */}
+                        {alert.llm_remediation && (
+                            <div className="llm-remediation-box">
+                                <button
+                                    className="llm-remediation-toggle"
+                                    onClick={() => toggleRemediation(alert.alert_id)}
+                                >
+                                    <Wrench size={14} className="llm-icon" />
+                                    <span>
+                                        {expandedRemediation.has(alert.alert_id)
+                                            ? 'Hide Remediation Steps'
+                                            : 'Show Remediation Steps'}
+                                    </span>
+                                </button>
+                                {expandedRemediation.has(alert.alert_id) && (
+                                    <div className="llm-remediation-steps">
+                                        {alert.llm_remediation.split('\n').filter(s => s.trim()).map((step, i) => (
+                                            <p key={i} className="remediation-step">{step}</p>
+                                        ))}
                                     </div>
                                 )}
                             </div>

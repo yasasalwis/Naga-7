@@ -220,6 +220,46 @@
     border-radius: 3px;
 }
 
+/* LLM Remediation Steps */
+.llm-remediation-box {
+    background: #0d2b1e;
+    border: 1px solid #16a34a;
+    border-radius: 5px;
+    padding: 10px 14px;
+    margin-top: 8px;
+}
+
+.llm-remediation-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #4ade80;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0;
+}
+
+.llm-remediation-toggle:hover {
+    color: #86efac;
+}
+
+.llm-remediation-steps {
+    margin-top: 8px;
+}
+
+.remediation-step {
+    font-size: 0.84rem;
+    color: #bbf7d0;
+    line-height: 1.5;
+    margin: 4px 0;
+    padding-left: 4px;
+}
+
 /* Verdict */
 .alert-verdict {
     display: flex;
