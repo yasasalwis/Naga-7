@@ -2,8 +2,6 @@ import logging
 import sys
 from datetime import datetime, timezone
 
-from pythonjsonlogger import jsonlogger
-
 from .config import settings
 
 # ANSI escape codes
@@ -20,19 +18,19 @@ _LEVEL_COLORS = {
     "CRITICAL": "\033[35;1m",  # Bright Magenta
 }
 
-# Component badge: bright blue for Core
-_COMPONENT_COLOR = "\033[94m"
-_COMPONENT_TAG   = "CORE"
+# Component badge: bright red for Strikers (response/action agents)
+_COMPONENT_COLOR = "\033[91m"
+_COMPONENT_TAG   = "STRIKER"
 
 
-class N7ColorFormatter(logging.Formatter):
+class N7StrikerFormatter(logging.Formatter):
     """
-    Human-readable colored formatter for N7-Core.
+    Human-readable colored formatter for N7-Strikers.
 
     Example output:
-      [2026-02-21 14:05:33.421]  [CORE]  [INFO    ]  n7-core.api  » Agent registered id=abc123
-      [2026-02-21 14:05:33.512]  [CORE]  [WARNING ]  n7-core.db   » Slow query detected (320 ms)
-      [2026-02-21 14:05:33.600]  [CORE]  [ERROR   ]  n7-core.nats » Connection refused
+      [2026-02-21 14:05:33.421]  [STRIKER]  [INFO    ]  n7-striker.actions.kill_process  » Killed process pid=4821
+      [2026-02-21 14:05:33.512]  [STRIKER]  [WARNING ]  n7-striker.agent-runtime         » Heartbeat 404: re-registering
+      [2026-02-21 14:05:33.600]  [STRIKER]  [ERROR   ]  n7-striker.actions.network_block  » Failed to block IP
     """
 
     def format(self, record: logging.LogRecord) -> str:
@@ -42,12 +40,12 @@ class N7ColorFormatter(logging.Formatter):
         )[:-3]  # trim microseconds → milliseconds
         ts_part = f"{_DIM}[{ts}]{_RESET}"
 
-        # --- Component badge [CORE] ---
+        # --- Component badge [STRIKER] ---
         badge = f"{_COMPONENT_COLOR}{_BOLD}[{_COMPONENT_TAG}]{_RESET}"
 
         # --- Level tag [INFO    ] padded to 8 chars inside brackets ---
-        level   = record.levelname
-        lcolor  = _LEVEL_COLORS.get(level, "")
+        level      = record.levelname
+        lcolor     = _LEVEL_COLORS.get(level, "")
         level_part = f"{lcolor}{_BOLD}[{level:<8}]{_RESET}"
 
         # --- Logger name (dimmed) ---
@@ -63,10 +61,10 @@ class N7ColorFormatter(logging.Formatter):
 
 def setup_logging() -> logging.Logger:
     """
-    Configure logging for N7-Core.
+    Configure logging for N7-Strikers.
 
     Development  → colored, human-readable lines to stdout
-    Production   → JSON lines to stdout (pipe-friendly, machine-parseable)
+    Production   → plain structured lines to stdout (no color codes)
 
     Log level is controlled by settings.LOG_LEVEL (default: INFO).
     """
@@ -79,23 +77,24 @@ def setup_logging() -> logging.Logger:
     handler = logging.StreamHandler(sys.stdout)
 
     if settings.ENVIRONMENT == "production":
-        formatter = jsonlogger.JsonFormatter(
-            fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
-            datefmt="%Y-%m-%dT%H:%M:%S",
-            json_ensure_ascii=False,
+        # Plain structured format for log aggregators (no ANSI codes)
+        plain_fmt = logging.Formatter(
+            fmt="[%(asctime)s]  [STRIKER]  [%(levelname)-8s]  %(name)s  » %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
+        handler.setFormatter(plain_fmt)
     else:
-        formatter = N7ColorFormatter()
+        handler.setFormatter(N7StrikerFormatter())
 
-    handler.setFormatter(formatter)
     root.addHandler(handler)
     root.setLevel(settings.LOG_LEVEL)
 
     # Suppress chatty third-party loggers
-    logging.getLogger("uvicorn.access").disabled = True
     logging.getLogger("asyncio").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("aiohttp").setLevel(logging.WARNING)
+    logging.getLogger("nats").setLevel(logging.WARNING)
 
     return root
 

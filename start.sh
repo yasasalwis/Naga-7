@@ -76,61 +76,72 @@ for arg in "$@"; do
     esac
 done
 
-# ── Terminal window launcher ──────────────────────────────────────────────────
-# Opens a named terminal window running a command in the given directory.
-# Falls back to background process if no supported terminal is found.
-open_terminal_window() {
-    local title="$1"
-    local dir="$2"
-    local cmd="$3"       # command to run inside the window
-    local log_file="$4"  # fallback log file when running in background
+# ── Agent window launcher ─────────────────────────────────────────────────────
+# Opens a dedicated launcher script (run-sentinels.sh / run-strikers.sh) in
+# its own terminal window, passing config via environment variables.
+# Returns the PID of the process running inside the window so cleanup() can
+# kill it on Ctrl+C.
+#
+# Usage: launch_agent_window <launcher_script> <log_file>
+launch_agent_window() {
+    local launcher="$1"   # absolute path to run-sentinels.sh or run-strikers.sh
+    local log_file="$2"   # fallback log file (background / --no-windows mode)
+    local title
+    title=$(basename "$launcher" .sh)  # e.g. "run-sentinels" → used as window label
+
+    # PID rendezvous file — the launcher writes $$ here on startup
+    local pid_out="/tmp/n7-pid-${title}-$$.tmp"
+    rm -f "$pid_out"
+
+    # Export config for the launcher script
+    export N7_ROOT="$SCRIPT_DIR"
+    export N7_PID_OUT="$pid_out"
 
     if [ "$NO_WINDOWS" = true ]; then
-        # Background mode — no new windows
-        ( cd "$dir" && eval "$cmd" > "$log_file" 2>&1 ) &
+        # Background mode — run launcher directly, no new window
+        bash "$launcher" > "$log_file" 2>&1 &
         echo $!
         return
     fi
 
     # ── macOS: Terminal.app ──
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # Write a temp wrapper script so no quoting survives AppleScript boundaries.
-        # IMPORTANT: declare and assign on ONE line — splitting onto two lines causes
-        # 'local' to swallow mktemp's exit code, leaving wrapper empty on failure.
-        local wrapper; wrapper=$(mktemp "/tmp/n7-start-${title// /_}-XXXXXX.sh")
-        printf '#!/bin/bash\nprintf "\\033]0;%s\\007" "%s"\ncd "%s"\n%s\necho ""\necho "--- process exited (press Enter to close) ---"\nread\n' \
-            "$title" "$title" "$dir" "$cmd" > "$wrapper"
-        chmod +x "$wrapper"
-
-        # Open a new Terminal window that executes the wrapper.
         osascript \
             -e 'tell application "Terminal"' \
-            -e "    do script \"exec bash $(printf '%q' "$wrapper")\"" \
+            -e "    do script \"exec bash $(printf '%q' "$launcher")\"" \
             -e '    activate' \
             -e 'end tell' \
             &>/dev/null
 
-        # Return a dummy PID; the window manages its own process
-        echo 0
+        # Wait up to 3 s for the launcher to write its PID
+        local waited=0
+        while [ ! -s "$pid_out" ] && [ $waited -lt 30 ]; do
+            sleep 0.1
+            waited=$((waited + 1))
+        done
+        local child_pid
+        child_pid=$(cat "$pid_out" 2>/dev/null || echo 0)
+        rm -f "$pid_out"
+        echo "$child_pid"
         return
     fi
 
     # ── Linux: try common terminal emulators in preference order ──
     local launched=false
-    for term in gnome-terminal konsole xterm xfce4-terminal lxterminal; do
+    for term in gnome-terminal konsole xfce4-terminal lxterminal xterm; do
         if command -v "$term" &>/dev/null; then
             case $term in
                 gnome-terminal)
-                    gnome-terminal --title="$title" -- bash -c "cd '$dir' && $cmd; echo '--- exited ---'; read" &
+                    gnome-terminal --title="$title" -- bash "$launcher" &
                     ;;
                 konsole)
-                    konsole --new-tab --title "$title" -e bash -c "cd '$dir' && $cmd; echo '--- exited ---'; read" &
+                    konsole --new-tab --title "$title" -e bash "$launcher" &
                     ;;
                 xfce4-terminal|lxterminal)
-                    $term --title="$title" -e "bash -c \"cd '$dir' && $cmd; echo '--- exited ---'; read\"" &
+                    $term --title="$title" -e "bash '$launcher'" &
                     ;;
                 xterm)
-                    xterm -title "$title" -e "bash -c \"cd '$dir' && $cmd; echo '--- exited ---'; read\"" &
+                    xterm -title "$title" -e "bash '$launcher'" &
                     ;;
             esac
             launched=true
@@ -139,11 +150,20 @@ open_terminal_window() {
     done
 
     if [ "$launched" = false ]; then
-        log_warning "No supported terminal emulator found — running '$title' in background"
-        ( cd "$dir" && eval "$cmd" > "$log_file" 2>&1 ) &
+        log_warning "No supported terminal emulator found — running $title in background"
+        bash "$launcher" > "$log_file" 2>&1 &
     fi
 
-    echo 0   # terminal manages its own process tree
+    # Wait for PID rendezvous (Linux launchers also write N7_PID_OUT)
+    local waited=0
+    while [ ! -s "$pid_out" ] && [ $waited -lt 30 ]; do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+    local child_pid
+    child_pid=$(cat "$pid_out" 2>/dev/null || echo 0)
+    rm -f "$pid_out"
+    echo "$child_pid"
 }
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -165,31 +185,44 @@ cleanup() {
     log_warning "Shutting down all Naga-7 services..."
 
     if [ -f "$PID_FILE" ]; then
-        # Graceful SIGTERM to every recorded process group
+        # Graceful SIGTERM — try both direct PID and process-group kill
         while IFS= read -r line || [ -n "$line" ]; do
             [ -z "$line" ] && continue
-            pgid="${line%%:*}"
+            pid="${line%%:*}"
             label="${line##*:}"
-            if kill -0 -- "-$pgid" 2>/dev/null; then
-                log_info "Stopping $label (PGID $pgid)..."
-                kill -TERM -- "-$pgid" 2>/dev/null || true
+            [ "$pid" = "0" ] && continue
+            if kill -0 "$pid" 2>/dev/null; then
+                log_info "Stopping $label (PID $pid)..."
+                # Kill the whole process group if possible, else just the PID
+                kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
             fi
         done < "$PID_FILE"
 
-        sleep 5   # allow graceful shutdown
+        sleep 3   # allow graceful shutdown
 
         # Force-kill survivors
         while IFS= read -r line || [ -n "$line" ]; do
             [ -z "$line" ] && continue
-            pgid="${line%%:*}"
+            pid="${line%%:*}"
             label="${line##*:}"
-            if kill -0 -- "-$pgid" 2>/dev/null; then
-                log_warning "Force-killing $label (PGID $pgid)..."
-                kill -KILL -- "-$pgid" 2>/dev/null || true
+            [ "$pid" = "0" ] && continue
+            if kill -0 "$pid" 2>/dev/null; then
+                log_warning "Force-killing $label (PID $pid)..."
+                kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
             fi
         done < "$PID_FILE"
 
         rm -f "$PID_FILE"
+    fi
+
+    # Close any lingering N7 Terminal windows on macOS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        osascript &>/dev/null <<'OSASCRIPT'
+tell application "Terminal"
+    close (every window whose name contains "N7-Sentinels")
+    close (every window whose name contains "N7-Strikers")
+end tell
+OSASCRIPT
     fi
 
     # Pattern-based sweep for any orphans not in the PID file
@@ -338,29 +371,22 @@ log_success "Database migrations completed"
 cd "$SCRIPT_DIR"
 
 # ============================================================================
-# Step 6: N7-Sentinels & N7-Strikers  (open own windows, verbose/debug logs)
+# Step 6: N7-Sentinels & N7-Strikers  (open own windows via dedicated scripts)
 # ============================================================================
 log_step "Step 6/8: Starting N7-Sentinels and N7-Strikers in separate windows..."
 
-AGENT_LOG_LEVEL="INFO"
+export AGENT_LOG_LEVEL="INFO"
 [ "$VERBOSE" = true ] && AGENT_LOG_LEVEL="DEBUG"
+export LOG_LEVEL="$AGENT_LOG_LEVEL"
 
-PYTHON_CMD=$(cd "$SCRIPT_DIR/n7-sentinels" && get_python_cmd)
-SENTINEL_WINDOW_CMD="LOG_LEVEL=$AGENT_LOG_LEVEL $PYTHON_CMD main.py 2>&1 | tee '$LOG_DIR/n7-sentinels.log'"
-SENTINEL_PID=$(open_terminal_window "N7-Sentinels" "$SCRIPT_DIR/n7-sentinels" "$SENTINEL_WINDOW_CMD" "$LOG_DIR/n7-sentinels.log")
-if [ "$SENTINEL_PID" != "0" ]; then
-    echo "${SENTINEL_PID}:N7-Sentinels" >> "$PID_FILE"
-fi
-log_success "N7-Sentinels started in new window ($AGENT_LOG_LEVEL)"
+SENTINEL_PID=$(launch_agent_window "$SCRIPT_DIR/run-sentinels.sh" "$LOG_DIR/n7-sentinels.log")
+echo "${SENTINEL_PID}:N7-Sentinels" >> "$PID_FILE"
+log_success "N7-Sentinels started in new window ($AGENT_LOG_LEVEL, PID: $SENTINEL_PID)"
 log_info "  Logs: logs/n7-sentinels.log"
 
-PYTHON_CMD=$(cd "$SCRIPT_DIR/n7-strikers" && get_python_cmd)
-STRIKER_WINDOW_CMD="LOG_LEVEL=$AGENT_LOG_LEVEL $PYTHON_CMD main.py 2>&1 | tee '$LOG_DIR/n7-strikers.log'"
-STRIKER_PID=$(open_terminal_window "N7-Strikers" "$SCRIPT_DIR/n7-strikers" "$STRIKER_WINDOW_CMD" "$LOG_DIR/n7-strikers.log")
-if [ "$STRIKER_PID" != "0" ]; then
-    echo "${STRIKER_PID}:N7-Strikers" >> "$PID_FILE"
-fi
-log_success "N7-Strikers started in new window ($AGENT_LOG_LEVEL)"
+STRIKER_PID=$(launch_agent_window "$SCRIPT_DIR/run-strikers.sh" "$LOG_DIR/n7-strikers.log")
+echo "${STRIKER_PID}:N7-Strikers" >> "$PID_FILE"
+log_success "N7-Strikers started in new window ($AGENT_LOG_LEVEL, PID: $STRIKER_PID)"
 log_info "  Logs: logs/n7-strikers.log"
 
 cd "$SCRIPT_DIR"
@@ -403,8 +429,7 @@ echo ""
 echo -e "${CYAN}Logs:${NC}"
 echo -e "  ${YELLOW}logs/${NC}  — tail -f logs/*.log"
 echo ""
-echo -e "${YELLOW}Ctrl+C stops Core and all background services.${NC}"
-echo -e "${YELLOW}Sentinel/Striker windows can be closed independently.${NC}"
+echo -e "${YELLOW}Ctrl+C stops Core AND closes all Sentinel/Striker windows.${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 

@@ -2,6 +2,9 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# Must be imported first — installs the colored formatter before any other module logs
+import n7_sentinels.logger  # noqa: F401
+
 import asyncio
 import logging
 from typing import Dict, Any
@@ -14,8 +17,6 @@ from n7_sentinels.config import settings
 
 from n7_sentinels.utils import print_banner
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("n7-sentinels")
 
 async def main():
@@ -48,15 +49,16 @@ async def main():
     try:
         while True:
             await asyncio.sleep(1)
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, KeyboardInterrupt):
         logger.info("N7-Sentinel shutting down...")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise
+    finally:
         await deception_engine.stop()
         await detection_engine.stop()
         await event_emitter.stop()
         await agent_runtime.stop()
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        raise
 
 async def probe_loop(probe, detection_engine):
     """

@@ -154,37 +154,44 @@ class AgentRuntimeService:
     async def _authenticate(self):
         """
         Authenticates with Core to register and get ID.
-        Sends the agent's unique API key for storage.
+        Retries with exponential backoff until Core is reachable.
         """
-        try:
-            logger.info("Authenticating with Core...")
-            payload = {
-                "agent_type": settings.AGENT_TYPE,
-                "agent_subtype": settings.AGENT_SUBTYPE,
-                "zone": settings.ZONE,
-                "capabilities": settings.CAPABILITIES,
-                "metadata": {"hostname": "localhost"},
-                "api_key": self._api_key  # Send API key for registration
-            }
-
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with self._session.post(
-                    f"{settings.CORE_API_URL}/agents/register",
-                    json=payload,
-                    timeout=timeout
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    self._agent_id = data.get("id")
-                    set_agent_id(self._agent_id)
-                    logger.info(f"Successfully registered agent {self._agent_id} with API key")
-                else:
-                    text = await resp.text()
-                    logger.error(f"Failed to register agent: {resp.status} - {text}")
-                    raise Exception(f"Agent registration failed: {text}")
-        except Exception as e:
-            logger.error(f"Error during authentication: {e}")
-            raise
+        payload = {
+            "agent_type": settings.AGENT_TYPE,
+            "agent_subtype": settings.AGENT_SUBTYPE,
+            "zone": settings.ZONE,
+            "capabilities": settings.CAPABILITIES,
+            "metadata": {"hostname": "localhost"},
+            "api_key": self._api_key
+        }
+        timeout = aiohttp.ClientTimeout(total=10)
+        delay = 2
+        attempt = 0
+        while self._running:
+            attempt += 1
+            try:
+                logger.info(f"Authenticating with Core (attempt {attempt})...")
+                async with self._session.post(
+                        f"{settings.CORE_API_URL}/agents/register",
+                        json=payload,
+                        timeout=timeout
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        self._agent_id = data.get("id")
+                        set_agent_id(self._agent_id)
+                        logger.info(f"Successfully registered agent {self._agent_id}")
+                        return
+                    else:
+                        text = await resp.text()
+                        logger.error(f"Registration rejected by Core: {resp.status} - {text}")
+                        raise Exception(f"Agent registration failed: {text}")
+            except aiohttp.ClientConnectorError as e:
+                logger.warning(f"Core not reachable (attempt {attempt}): {e}. Retrying in {delay}s...")
+            except Exception as e:
+                logger.error(f"Authentication error (attempt {attempt}): {e}. Retrying in {delay}s...")
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 60)  # cap at 60 s
 
     async def _heartbeat_loop(self):
         """

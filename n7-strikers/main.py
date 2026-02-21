@@ -2,6 +2,9 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# Must be imported first — installs the colored formatter before any other module logs
+import n7_strikers.logger  # noqa: F401
+
 import asyncio
 import logging
 from n7_strikers.agent_runtime.service import AgentRuntimeService
@@ -11,8 +14,6 @@ from n7_strikers.evidence_collector.service import EvidenceCollectorService
 
 from n7_strikers.utils import print_banner
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("n7-strikers")
 
 async def main():
@@ -38,19 +39,20 @@ async def main():
     await evidence_collector.start()
     await agent_runtime.start()
     await action_executor.start()
-    
+
     try:
         while True:
             await asyncio.sleep(1)
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, KeyboardInterrupt):
         logger.info("N7-Striker shutting down...")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise
+    finally:
         await agent_runtime.stop()
         await action_executor.stop()
         await rollback_manager.stop()
         await evidence_collector.stop()
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        raise
 
 if __name__ == "__main__":
     try:
