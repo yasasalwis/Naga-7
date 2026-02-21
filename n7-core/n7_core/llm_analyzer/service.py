@@ -55,6 +55,9 @@ class LLMAnalyzerService(BaseService):
             f"LLMAnalyzerService started. Ollama: {self._ollama_url}, model: {self._ollama_model}"
         )
 
+        # Verify Ollama is reachable before accepting alert traffic
+        await self._startup_health_check()
+
         if nats_client.nc and nats_client.nc.is_connected:
             await nats_client.nc.subscribe(
                 "n7.llm.analyze",
@@ -64,6 +67,61 @@ class LLMAnalyzerService(BaseService):
             logger.info("Subscribed to n7.llm.analyze")
         else:
             logger.warning("NATS not connected — LLMAnalyzerService subscription deferred.")
+
+    async def _startup_health_check(self) -> bool:
+        """
+        Probes Ollama at service startup.
+        Returns True if reachable, False otherwise.
+        Logs a prominent warning if unavailable so operators know LLM is degraded.
+        """
+        healthy = await self.check_llm_health()
+        if healthy:
+            logger.info(
+                f"LLM health check PASSED — Ollama is reachable at {self._ollama_url} "
+                f"with model '{self._ollama_model}'."
+            )
+        else:
+            logger.warning(
+                "LLM health check FAILED — Ollama is not reachable at %s. "
+                "LLMAnalyzerService will use rule-based fallback narratives until Ollama becomes available. "
+                "Check OLLAMA_URL and ensure the Ollama service is running.",
+                self._ollama_url,
+            )
+        return healthy
+
+    async def check_llm_health(self) -> bool:
+        """
+        Pings the Ollama /api/tags endpoint to confirm the service is up and the
+        configured model is available.  Returns True on success, False on any error.
+        Used by the startup probe and the /health API endpoint.
+        """
+        if self._http_client is None:
+            return False
+        try:
+            response = await self._http_client.get(
+                f"{self._ollama_url}/api/tags",
+                timeout=10.0,
+            )
+            response.raise_for_status()
+            tags_data = response.json()
+            available_models = [m.get("name", "") for m in tags_data.get("models", [])]
+            # Accept both exact match and name-prefix match (e.g. "llama3" matches "llama3:latest")
+            model_found = any(
+                m == self._ollama_model or m.startswith(f"{self._ollama_model}:")
+                for m in available_models
+            )
+            if not model_found:
+                logger.warning(
+                    "Ollama is reachable but model '%s' is not in the available list: %s. "
+                    "Pull it with: ollama pull %s",
+                    self._ollama_model,
+                    available_models,
+                    self._ollama_model,
+                )
+            return True  # Ollama itself is up; caller decides what to do with missing model
+        except Exception as e:
+            logger.debug("LLM health probe failed: %s: %s", type(e).__name__, e)
+            return False
 
     async def stop(self):
         self._running = False

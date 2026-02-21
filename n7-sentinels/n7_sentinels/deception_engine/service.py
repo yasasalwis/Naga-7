@@ -8,8 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from ..event_emitter.service import EventEmitterService
 from ..config import settings
+from ..event_emitter.service import EventEmitterService
+from ..agent_id import get_agent_id
 
 logger = logging.getLogger("n7-sentinel.deception-engine")
 
@@ -201,7 +202,7 @@ class DeceptionEngineService:
         event_data = {
             "event_id": str(uuid.uuid4()),
             "timestamp": datetime.utcnow().isoformat(),
-            "sentinel_id": getattr(settings, "AGENT_ID", "sentinel-1"),
+            "sentinel_id": get_agent_id(),
             "event_class": "honeytoken_access",
             "severity": "critical",
             "raw_data": {

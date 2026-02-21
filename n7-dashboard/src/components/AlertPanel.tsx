@@ -108,7 +108,7 @@ export function AlertPanel() {
                             </div>
                             <span className="alert-timestamp">
                                 {alert.created_at
-                                    ? new Date(alert.created_at).toLocaleString()
+                                    ? new Date(alert.created_at + 'Z').toLocaleString()
                                     : '—'}
                             </span>
                         </div>

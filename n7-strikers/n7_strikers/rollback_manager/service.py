@@ -92,7 +92,7 @@ class RollbackManagerService:
         """Publish a rollback action to the striker's own NATS subject."""
         try:
             from ..messaging.nats_client import nats_client
-            from ..config import settings
+            from ..agent_id import get_agent_id
 
             rollback_payload = json.dumps({
                 "action_id": f"rollback_{action_id}",
@@ -105,7 +105,7 @@ class RollbackManagerService:
 
             if nats_client.nc and nats_client.nc.is_connected:
                 await nats_client.nc.publish(
-                    f"n7.actions.{settings.AGENT_ID}",
+                    f"n7.actions.{get_agent_id()}",
                     rollback_payload
                 )
                 self._rollback_ledger[action_id]["rolled_back"] = True

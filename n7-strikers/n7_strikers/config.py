@@ -1,17 +1,21 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve .env relative to the n7-strikers package root (two levels up from this file)
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     LOG_LEVEL: str = "INFO"
 
-    # NATS
-    NATS_URL: str  # Required
+    # NATS — populated from remote config on startup; empty until then
+    NATS_URL: str = ""
 
-    # Agent Identity
+    # Agent Identity — AGENT_ID is assigned by Core on registration (see agent_id.py)
     AGENT_TYPE: str = "striker"
     AGENT_SUBTYPE: str = "endpoint"
-    AGENT_ID: str = "striker-1"  # Should be dynamic/generated
     ZONE: str = "default"
 
     CORE_API_URL: str  # Required
@@ -21,7 +25,7 @@ class Settings(BaseSettings):
 
     CAPABILITIES: list[str] = ["kill_process", "block_ip", "isolate_host", "unisolate_host"]
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(_ENV_FILE), env_file_encoding="utf-8", extra="ignore")
 
 
 settings = Settings()

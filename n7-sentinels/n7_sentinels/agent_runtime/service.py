@@ -8,6 +8,7 @@ import aiohttp
 
 from .config import settings
 from .graph import build_sentinel_graph, AgentState
+from ..agent_id import load_persisted_agent_id, set_agent_id
 from ..config_loader import fetch_remote_config
 
 logger = logging.getLogger("n7-sentinel.agent-runtime")
@@ -29,6 +30,9 @@ class AgentRuntimeService:
 
         # Load or generate API key on initialization
         self._api_key = self._load_or_generate_api_key()
+
+        # Attempt to restore a previously Core-assigned agent ID from disk
+        self._agent_id = load_persisted_agent_id()
 
     async def start(self):
         self._running = True
@@ -169,6 +173,7 @@ class AgentRuntimeService:
                 if resp.status == 200:
                     data = await resp.json()
                     self._agent_id = data.get("id")
+                    set_agent_id(self._agent_id)
                     logger.info(f"Successfully registered agent {self._agent_id} with API key")
                 else:
                     text = await resp.text()
@@ -181,6 +186,7 @@ class AgentRuntimeService:
     async def _heartbeat_loop(self):
         """
         Sends periodic heartbeats to Core with API key authentication.
+        On 404 the agent record is gone from Core (e.g. DB wipe); re-register.
         """
         while self._running:
             try:
@@ -199,6 +205,11 @@ class AgentRuntimeService:
                     ) as resp:
                         if resp.status == 200:
                             logger.debug("Heartbeat sent successfully")
+                        elif resp.status == 404:
+                            # Agent record missing on Core — re-register
+                            logger.warning("Heartbeat 404: agent not found on Core, re-registering...")
+                            self._agent_id = None
+                            await self._authenticate()
                         else:
                             text = await resp.text()
                             logger.warning(f"Heartbeat failed: {resp.status} - {text}")

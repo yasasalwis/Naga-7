@@ -4,7 +4,7 @@ import logging
 from ..actions.kill_process import KillProcessAction
 from ..actions.network_block import NetworkBlockAction, NetworkUnblockAction
 from ..actions.network_isolator import NetworkIsolatorAction, NetworkUnisolatorAction
-from ..config import settings
+from ..agent_id import get_agent_id
 from ..evidence_collector.service import EvidenceCollectorService
 from ..messaging.nats_client import nats_client
 from ..rollback_manager.service import RollbackManagerService
@@ -29,7 +29,7 @@ class _ActionDict:
     def __init__(self, data: dict):
         self.action_id = data.get("action_id", "")
         self.incident_id = data.get("incident_id", "")
-        self.striker_id = data.get("striker_id", settings.AGENT_ID)
+        self.striker_id = data.get("striker_id", get_agent_id())
         self.action_type = data.get("action_type", data.get("type", ""))
         self.parameters = data.get("parameters", json.dumps(data.get("params", {})))
         self.status = data.get("status", "queued")
@@ -65,7 +65,7 @@ class ActionExecutorService:
         logger.info("ActionExecutorService started.")
 
         if nats_client.nc.is_connected:
-            subject = f"n7.actions.{settings.AGENT_ID}"
+            subject = f"n7.actions.{get_agent_id()}"
             await nats_client.nc.subscribe(subject, cb=self.handle_action)
             logger.info(f"Subscribed to {subject}")
 
@@ -154,7 +154,7 @@ class ActionExecutorService:
                     status_update = ProtoAction()
                     status_update.action_id = action_id
                     status_update.incident_id = proto_action.incident_id
-                    status_update.striker_id = settings.AGENT_ID
+                    status_update.striker_id = get_agent_id()
                     status_update.action_type = action_type
                     status_update.status = status_str
                     status_update.result_data = json.dumps({
@@ -165,7 +165,7 @@ class ActionExecutorService:
                 else:
                     status_payload = json.dumps({
                         "action_id": action_id,
-                        "striker_id": settings.AGENT_ID,
+                        "striker_id": get_agent_id(),
                         "action_type": action_type,
                         "status": status_str,
                         "result_data": result,

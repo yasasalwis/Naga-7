@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional, TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +12,21 @@ from .routers import agent_config
 from ..config import settings
 from ..service_manager.base_service import BaseService
 
+if TYPE_CHECKING:
+    from ..llm_analyzer.service import LLMAnalyzerService
+
 logger = logging.getLogger("n7-core.api-gateway")
+
+# Module-level reference set by main.py after LLMAnalyzerService is started.
+# Used by the /health endpoint to report live LLM status without circular imports.
+_llm_analyzer_ref: Optional["LLMAnalyzerService"] = None
+
+
+def register_llm_analyzer(svc: "LLMAnalyzerService") -> None:
+    """Called from main.py to give the health endpoint access to the LLM service."""
+    global _llm_analyzer_ref
+    _llm_analyzer_ref = svc
+
 
 app = FastAPI(title="Naga-7 API", version="1.0.0")
 
@@ -36,7 +51,18 @@ app.include_router(agent_config.router, prefix="/api/v1/agents", tags=["Agent Co
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    llm_status = "unknown"
+    if _llm_analyzer_ref is not None:
+        llm_ok = await _llm_analyzer_ref.check_llm_health()
+        llm_status = "ok" if llm_ok else "degraded"
+
+    overall = "ok" if llm_status in ("ok", "unknown") else "degraded"
+    return {
+        "status": overall,
+        "components": {
+            "llm_analyzer": llm_status,
+        },
+    }
 
 
 class APIGatewayService(BaseService):

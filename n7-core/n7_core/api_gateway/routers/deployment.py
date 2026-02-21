@@ -97,7 +97,7 @@ async def deploy_agent(
     """
     Trigger async deployment of an agent to the specified node.
     Returns immediately with status 'pending'.
-    Poll GET /api/deployment/nodes to observe deployment_status changes.
+    Poll GET /api/v1/deployment/nodes to observe deployment_status changes.
     """
     async with async_session_maker() as session:
         result = await session.execute(
@@ -128,5 +128,5 @@ async def deploy_agent(
     return DeployResponse(
         node_id=node_id,
         deployment_status="pending",
-        message="Deployment started. Poll GET /api/deployment/nodes for status updates.",
+        message="Deployment started. Poll GET /api/v1/deployment/nodes for status updates.",
     )

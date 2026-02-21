@@ -1,7 +1,8 @@
 """
 Remote config loader for N7 agents.
 
-On startup the agent calls GET /api/v1/agents/{agent_id}/config with its API key.
+On startup the agent calls GET {CORE_API_URL}/agents/{agent_id}/config with its API key.
+CORE_API_URL already includes the versioned prefix (e.g. http://host:8000/api/v1).
 Core responds with config values where the two sensitive fields (nats_url_enc,
 core_api_url_enc) are Fernet-encrypted using a key derived from the agent's own
 API key.  The agent decrypts them locally using the same derivation:
@@ -38,7 +39,7 @@ async def fetch_remote_config(
     Returns None on any failure (network error, 404, auth failure) — the caller
     should fall back to local .env values in that case.
     """
-    url = f"{core_api_url}/api/v1/agents/{agent_id}/config"
+    url = f"{core_api_url}/agents/{agent_id}/config"
     headers = {"X-Agent-API-Key": api_key}
 
     own_session = session is None

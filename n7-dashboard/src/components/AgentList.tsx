@@ -47,7 +47,7 @@ export function AgentList() {
                   {agent.agent_type} • {agent.agent_subtype}
                 </p>
                 <p className="agent-heartbeat">
-                  Last Heartbeat: {new Date(agent.last_heartbeat).toLocaleTimeString()}
+                  Last Heartbeat: {new Date(agent.last_heartbeat + 'Z').toLocaleTimeString()}
                 </p>
               </div>
               <div className="agent-status-container">

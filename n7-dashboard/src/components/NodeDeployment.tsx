@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './NodeDeployment.css';
 
-const API_BASE = `${import.meta.env.VITE_API_URL}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL}/api/v1`;
 
 interface InfraNode {
   id: string;
@@ -28,7 +28,7 @@ const defaultDeployConfig = {
   zone: 'default',
   ssh_username: '',
   ssh_password: '',
-  core_api_url: `${import.meta.env.VITE_API_URL}/api`,
+  core_api_url: `${import.meta.env.VITE_API_URL}/api/v1`,
   nats_url: 'nats://localhost:4222',
 };
 

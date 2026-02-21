@@ -1,11 +1,13 @@
 import asyncio
 import json
 import logging
+import uuid
 from collections import deque
 
 from nats.aio.client import Client as NATS
 
 from .config import settings
+from ..agent_id import get_agent_id
 
 logger = logging.getLogger("n7-sentinel.event-emitter")
 
@@ -78,10 +80,18 @@ class EventEmitterService:
 
             await asyncio.sleep(1)  # Check every second
 
+    def _stamp(self, event_data: dict) -> dict:
+        """Inject sentinel_id and event_id if not already present."""
+        event = dict(event_data)
+        event.setdefault("sentinel_id", get_agent_id())
+        event.setdefault("event_id", str(uuid.uuid4()))
+        return event
+
     async def emit(self, event_data: dict):
         """
         Publishes an event to NATS or buffers it.
         """
+        event_data = self._stamp(event_data)
         if not self.nc.is_connected:
             if self._buffer.maxlen and len(self._buffer) < self._buffer.maxlen:
                 self._buffer.append(event_data)

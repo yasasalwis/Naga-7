@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Naga-7.jpg" alt="Naga-7 Logo" width="200"/>
+  <img src="docs/Naga-7.jpg" alt="Naga-7 Logo" width="200"/>
 </p>
 
 # Naga-7 (N7)

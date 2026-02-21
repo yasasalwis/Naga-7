@@ -21,6 +21,8 @@ from n7_core.playbooks.service import PlaybookEngineService
 from n7_core.notifier.service import NotifierService
 from n7_core.deployment.service import DeploymentService
 from n7_core.utils import print_banner
+from n7_core.config import settings
+from n7_core.api_gateway.service import register_llm_analyzer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -83,8 +85,28 @@ async def main():
     service_manager.register(DeploymentService())
     service_manager.register(NotifierService())
 
+    # Expose LLMAnalyzerService to the /health endpoint
+    register_llm_analyzer(llm_analyzer_svc)
+
     # Start all services
     await service_manager.start_all()
+
+    # ------------------------------------------------------------------
+    # Post-startup: verify LLM is active and reachable before processing
+    # ------------------------------------------------------------------
+    llm_ok = await llm_analyzer_svc.check_llm_health()
+    if llm_ok:
+        logger.info(
+            "Startup check: LLM (Ollama) is ACTIVE — enriched narratives enabled."
+        )
+    else:
+        logger.warning(
+            "Startup check: LLM (Ollama) is UNREACHABLE — "
+            "alert narratives will use rule-based fallback until Ollama recovers. "
+            "Ensure Ollama is running at %s and model '%s' is pulled.",
+            settings.OLLAMA_URL,
+            settings.OLLAMA_MODEL,
+        )
 
     try:
         # Keep the main loop running

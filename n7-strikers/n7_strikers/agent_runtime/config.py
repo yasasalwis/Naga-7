@@ -1,6 +1,10 @@
+from pathlib import Path
 from typing import Literal, List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve .env relative to the n7-strikers package root (three levels up from this file)
+_ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -8,12 +12,11 @@ class Settings(BaseSettings):
     Configuration for Striker Agent Runtime.
     Reads from environment variables and .env file.
     """
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(_ENV_FILE), env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 
-    # Agent Identity
+    # Agent Identity — AGENT_ID is assigned by Core on registration (see agent_id.py)
     AGENT_TYPE: Literal["sentinel", "striker"] = "striker"
     AGENT_SUBTYPE: str = "network"  # Default subtype
-    AGENT_ID: str = "striker-001"  # Default ID, will be replaced after registration
     ZONE: str = "default"
 
     # Capabilities
@@ -22,8 +25,8 @@ class Settings(BaseSettings):
     # Core API
     CORE_API_URL: str  # Required
 
-    # NATS Configuration
-    NATS_URL: str  # Required
+    # NATS Configuration — populated from remote config on startup; empty until then
+    NATS_URL: str = ""
     NATS_CLUSTER_ID: str = "n7-cluster"
     
     # Authentication - Unique API key per agent instance

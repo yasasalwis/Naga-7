@@ -30,8 +30,8 @@ class DeployRequest(BaseModel):
     agent_subtype: str = "system"
     zone: str = "default"
     core_api_url: str = Field(
-        default="http://localhost:8000/api",
-        description="URL the deployed agent will use to reach Core"
+        default="http://localhost:8000/api/v1",
+        description="Versioned base URL the deployed agent will use to reach Core (must include /api/v1)"
     )
     nats_url: str = Field(default="nats://localhost:4222")
     # Credential override at deploy time (if not already stored on the node)

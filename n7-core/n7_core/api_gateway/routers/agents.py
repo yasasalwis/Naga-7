@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,12 +11,22 @@ from ...schemas.agent import Agent, AgentRegister, AgentHeartbeat
 
 router = APIRouter(tags=["Agents"])
 
+AGENT_STALE_THRESHOLD_SECONDS = 90
+
 
 @router.get("/", response_model=List[Agent])
 async def list_agents():
     async with async_session_maker() as session:
         result = await session.execute(select(AgentModel))
-        return result.scalars().all()
+        agents = result.scalars().all()
+
+    # Mark agents whose last heartbeat exceeds the stale threshold as inactive
+    stale_cutoff = datetime.utcnow() - timedelta(seconds=AGENT_STALE_THRESHOLD_SECONDS)
+    for agent in agents:
+        if agent.last_heartbeat and agent.last_heartbeat < stale_cutoff:
+            agent.status = "inactive"
+
+    return agents
 
 
 @router.post("/register", response_model=Agent)
@@ -80,24 +90,25 @@ async def heartbeat(
 ):
     """
     Heartbeat endpoint. Requires valid API key authentication.
-    Verifies the authenticated agent matches the heartbeat agent_id.
+    The authenticated agent (resolved from API key) is the authoritative identity;
+    the agent_id in the payload is verified to match but the DB lookup uses the
+    authenticated agent's id to avoid 404s when the payload carries a stale id.
     """
+    # Verify the payload agent_id matches the authenticated agent (security check)
+    if str(heartbeat_in.agent_id) != str(authenticated_agent.id):
+        raise HTTPException(
+            status_code=403,
+            detail="Agent ID mismatch - cannot update another agent's heartbeat"
+        )
+
     async with async_session_maker() as session:
-        # Fetch the agent from heartbeat payload
         result = await session.execute(
-            select(AgentModel).where(AgentModel.id == heartbeat_in.agent_id)
+            select(AgentModel).where(AgentModel.id == authenticated_agent.id)
         )
         agent = result.scalar_one_or_none()
 
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
-
-        # Verify the authenticated agent matches the heartbeat agent_id (security check)
-        if agent.id != authenticated_agent.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Agent ID mismatch - cannot update another agent's heartbeat"
-            )
 
         # Update heartbeat
         agent.last_heartbeat = datetime.utcnow()
