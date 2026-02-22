@@ -407,10 +407,42 @@ done
 log_ok "Environment validation complete"
 
 # ============================================================================
-# Step 3: Infrastructure
+# Step 3: Python dependencies
+# ============================================================================
+if [ "$SKIP_DEPS" = false ]; then
+    log_step "3/9  Installing Python dependencies..."
+
+    for component in n7-core n7-sentinels n7-strikers; do
+        log_info "[$component] pip install..."
+        cd "$SCRIPT_DIR/$component"
+        PIP_CMD=$(get_pip_cmd "$SCRIPT_DIR/$component")
+        $PIP_CMD install --quiet -r requirements.txt \
+            > "$LOG_DIR/pip-${component}.log" 2>&1 || {
+            log_error "[$component] pip install failed — see $LOG_DIR/pip-${component}.log"
+            exit 1
+        }
+        log_ok "[$component] dependencies installed"
+    done
+    cd "$SCRIPT_DIR"
+else
+    log_step "3/9  Skipping Python dependency installation (--skip-deps)"
+fi
+
+# ============================================================================
+# Step 4: Generate Certificates and NATS Auth
+# ============================================================================
+log_step "4/9  Generating Certificates and NATS JWTs..."
+cd "$SCRIPT_DIR/n7-core"
+PYTHON_CMD=$(get_python_cmd "$SCRIPT_DIR/n7-core")
+cd "$SCRIPT_DIR/scripts"
+$PYTHON_CMD generate_certs_and_jwt.py || { log_error "Failed to generate certificates."; exit 1; }
+cd "$SCRIPT_DIR"
+
+# ============================================================================
+# Step 4.5: Infrastructure
 # ============================================================================
 if [ "$KEEP_INFRA" = false ]; then
-    log_step "3/8  Starting infrastructure (NATS, PostgreSQL, Redis)..."
+    log_step "5/9  Starting infrastructure (NATS, PostgreSQL, Redis)..."
 
     cd "$SCRIPT_DIR/deploy"
     docker-compose up -d
@@ -433,33 +465,11 @@ if [ "$KEEP_INFRA" = false ]; then
     wait_for_port localhost 6379 "$HEALTH_TIMEOUT" || log_fatal "Redis did not become reachable within ${HEALTH_TIMEOUT}s"
     log_ok "Redis reachable on :6379"
 else
-    log_step "3/8  Skipping infrastructure start (--keep-infra)"
+    log_step "5/9  Skipping infrastructure start (--keep-infra)"
     log_info "Verifying external infrastructure..."
     wait_for_port localhost 5432 10 || log_warn "PostgreSQL not reachable on :5432 — continuing anyway"
     wait_for_port localhost 4222 10 || log_warn "NATS not reachable on :4222 — continuing anyway"
     wait_for_port localhost 6379 10 || log_warn "Redis not reachable on :6379 — continuing anyway"
-fi
-
-# ============================================================================
-# Step 4: Python dependencies
-# ============================================================================
-if [ "$SKIP_DEPS" = false ]; then
-    log_step "4/8  Installing Python dependencies..."
-
-    for component in n7-core n7-sentinels n7-strikers; do
-        log_info "[$component] pip install..."
-        cd "$SCRIPT_DIR/$component"
-        PIP_CMD=$(get_pip_cmd "$SCRIPT_DIR/$component")
-        $PIP_CMD install --quiet -r requirements.txt \
-            > "$LOG_DIR/pip-${component}.log" 2>&1 || {
-            log_error "[$component] pip install failed — see $LOG_DIR/pip-${component}.log"
-            exit 1
-        }
-        log_ok "[$component] dependencies installed"
-    done
-    cd "$SCRIPT_DIR"
-else
-    log_step "4/8  Skipping Python dependency installation (--skip-deps)"
 fi
 
 # ============================================================================

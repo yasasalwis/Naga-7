@@ -4,7 +4,7 @@ import uuid as _uuid
 from datetime import datetime, timedelta, UTC
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from ..auth import get_agent_from_api_key, get_current_active_user, pwd_context
@@ -13,7 +13,7 @@ from ...database.session import async_session_maker
 from ...messaging.nats_client import nats_client
 from ...models.agent import Agent as AgentModel
 from ...models.agent_config import AgentConfig
-from ...schemas.agent import Agent, AgentRegister, AgentHeartbeat, AgentConfigUpdate, AgentUpdate
+from ...schemas.agent import Agent, AgentRegister, AgentRegisterResponse, AgentHeartbeat, AgentConfigUpdate, AgentUpdate
 
 router = APIRouter(tags=["Agents"])
 
@@ -105,11 +105,17 @@ async def list_strikers():
     return out
 
 
-@router.post("/register", response_model=Agent)
-async def register_agent(agent_in: AgentRegister):
+_MTLS_PORT = 8443
+
+
+@router.post("/register", response_model=AgentRegisterResponse)
+async def register_agent(request: Request, agent_in: AgentRegister):
     """
     Register a new agent. No authentication required for initial registration.
     Agent sends its self-generated API key which is hashed and stored.
+    Registration is available on the plain HTTP port (8000) because agents have
+    no cert yet — this endpoint is the cert issuance point. After registration
+    agents switch to the mTLS port (8443) for all subsequent communication.
     """
     async with async_session_maker() as session:
         # Extract prefix (first 16 chars) for O(1) indexed lookup
@@ -124,16 +130,26 @@ async def register_agent(agent_in: AgentRegister):
         if existing_agent:
             # Verify if it's the same key
             if pwd_context.verify(agent_in.api_key, existing_agent.api_key_hash):
-                # Valid re-registration, update status and return
+                # Valid re-registration, update status and return fresh cert
                 existing_agent.last_heartbeat = datetime.now(UTC)
                 existing_agent.status = "active"
-                # Update other fields if needed
                 existing_agent.capabilities = agent_in.capabilities
                 existing_agent.metadata_ = agent_in.metadata
-                
+
                 await session.commit()
                 await session.refresh(existing_agent)
-                return existing_agent
+
+                from ..ca import generate_agent_cert, get_ca_cert_pem
+                try:
+                    cert, key = generate_agent_cert(str(existing_agent.id))
+                    response_data = AgentRegisterResponse.model_validate(existing_agent)
+                    response_data.client_cert = cert
+                    response_data.client_key = key
+                    response_data.ca_cert = get_ca_cert_pem()
+                    return response_data
+                except Exception as e:
+                    logger.error(f"Failed to generate mTLS certificates for agent {existing_agent.id}: {e}")
+                    return AgentRegisterResponse.model_validate(existing_agent)
             else:
                 # Key collision or invalid key for existing prefix
                 # Since prefix is 16 chars, collision is unlikely. Assume invalid key.
@@ -156,7 +172,19 @@ async def register_agent(agent_in: AgentRegister):
         session.add(db_agent)
         await session.commit()
         await session.refresh(db_agent)
-        return db_agent
+        
+        # Generate mTLS certificates for the agent
+        from ..ca import generate_agent_cert, get_ca_cert_pem
+        try:
+            cert, key = generate_agent_cert(str(db_agent.id))
+            response_data = AgentRegisterResponse.model_validate(db_agent)
+            response_data.client_cert = cert
+            response_data.client_key = key
+            response_data.ca_cert = get_ca_cert_pem()
+            return response_data
+        except Exception as e:
+            logger.error(f"Failed to generate mTLS certificates for agent {db_agent.id}: {e}")
+            return AgentRegisterResponse.model_validate(db_agent)
 
 
 @router.post("/heartbeat")

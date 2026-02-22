@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { connect, jwtAuthenticator, StringCodec } from 'nats.ws';
+import type { NatsConnection } from 'nats.ws';
 import {
-    AlertTriangle, Brain, ShieldAlert, Wrench,
+    Brain, ShieldAlert, Wrench,
     Send, CheckCircle, XCircle, Loader, ChevronDown, ChevronUp,
     Zap, Shield
 } from 'lucide-react';
@@ -203,13 +205,69 @@ export function AlertPanel() {
     }, []);
 
     useEffect(() => {
+        let nc: NatsConnection | null = null;
+        let isActive = true;
+
+        // Perform initial HTTP fetch for current state
         fetchAlerts();
         fetchStrikers();
-        const alertInterval = setInterval(fetchAlerts, 5000);
+
+        // Connect to NATS WebSockets for live alerts
+        const connectNats = async () => {
+            try {
+                // Fetch dynamic JWT and seed
+                const token = localStorage.getItem('token');
+                const headers = token ? { Authorization: `Bearer ${token}` } : {};
+                const response = await axios.get(`${API_BASE}/api/v1/alerts/ws-token`, { headers });
+
+                if (!isActive) return;
+
+                const { jwt, seed } = response.data;
+                const seedBytes = new TextEncoder().encode(seed);
+
+                nc = await connect({
+                    servers: 'ws://localhost:9222',
+                    authenticator: jwtAuthenticator(() => jwt, seedBytes),
+                });
+
+                console.log("Connected to NATS WebSockets for real-time alerts!");
+                const sc = StringCodec();
+
+                // Subscribe to critical alerts
+                const sub = nc.subscribe("n7.alerts.critical.new");
+                for await (const msg of sub) {
+                    if (!isActive) break;
+                    try {
+                        const newAlert = JSON.parse(sc.decode(msg.data));
+                        setAlerts(prev => {
+                            // Deduplicate
+                            const exists = prev.find(a => a.alert_id === newAlert.alert_id);
+                            if (exists) return prev;
+                            return [newAlert, ...prev].slice(0, 50);
+                        });
+                    } catch (e) {
+                        console.error("Error parsing NATS WebSocket message", e);
+                    }
+                }
+            } catch (err) {
+                console.error("NATS WebSocket connection failed. Retrying in 5s...", err);
+                if (isActive) {
+                    setTimeout(connectNats, 5000);
+                }
+            }
+        };
+
+        connectNats();
+
+        // Keep HTTP polling for strikers
         const strikerInterval = setInterval(fetchStrikers, 15000);
+
         return () => {
-            clearInterval(alertInterval);
+            isActive = false;
             clearInterval(strikerInterval);
+            if (nc) {
+                nc.close();
+            }
         };
     }, [fetchAlerts, fetchStrikers]);
 
@@ -307,19 +365,22 @@ export function AlertPanel() {
         <div className="alert-panel-container">
             <div className="alert-panel-header-row">
                 <h2 className="alert-panel-header">
-                    <AlertTriangle className="alert-panel-title-icon" size={24} />
-                    Alert Triage
+                    <Brain className="alert-panel-title-icon" size={24} />
+                    AI Recommendations & Alerts
                 </h2>
                 <div className="striker-status-pill">
-                    <Zap size={12} />
-                    <span>{activeStrikerCount} striker{activeStrikerCount !== 1 ? 's' : ''} online</span>
+                    <Shield size={14} />
+                    <span>{activeStrikerCount} security agent{activeStrikerCount !== 1 ? 's' : ''} ready</span>
                 </div>
             </div>
 
             {error && <div className="alert-panel-error">{error}</div>}
 
             {alerts.length === 0 && !error && (
-                <div className="alert-panel-empty">No alerts detected. System is healthy.</div>
+                <div className="alert-panel-empty">
+                    <CheckCircle size={32} color="var(--accent-success)" style={{ marginBottom: '10px' }} />
+                    <p>No active threats detected. Your system is secure.</p>
+                </div>
             )}
 
             <div className="alert-list">
@@ -393,9 +454,9 @@ export function AlertPanel() {
                                 <div className="llm-analysis-box">
                                     <div className="llm-analysis-header">
                                         <Brain size={16} className="llm-icon" />
-                                        <span>AI Analysis</span>
+                                        <span>AI Security Analysis</span>
                                         {(alert.llm_mitre_tactic || alert.llm_mitre_technique) && (
-                                            <div className="llm-mitre">
+                                            <div className="llm-mitre" title="MITRE ATT&CK Framework categorization">
                                                 {alert.llm_mitre_tactic && (
                                                     <span className="llm-mitre-tag">{alert.llm_mitre_tactic}</span>
                                                 )}
@@ -443,15 +504,15 @@ export function AlertPanel() {
                                         className="dispatch-panel-toggle"
                                         onClick={() => toggleDispatch(alert.alert_id)}
                                     >
-                                        <Shield size={14} />
+                                        <Shield size={16} />
                                         <span>
                                             {isDispatchOpen
-                                                ? 'Hide Striker Dispatch'
-                                                : `Dispatch Striker Actions (${recommendedActions.length} recommended)`}
+                                                ? 'Hide Action Menu'
+                                                : `Take Action (${recommendedActions.length} recommended)`}
                                         </span>
                                         {isDispatchOpen
-                                            ? <ChevronUp size={14} />
-                                            : <ChevronDown size={14} />}
+                                            ? <ChevronUp size={16} />
+                                            : <ChevronDown size={16} />}
                                     </button>
 
                                     {isDispatchOpen && (

@@ -23,3 +23,5 @@ python-nmap>=0.7.1
 icmplib>=3.0.4
 email-validator
 greenlet
+nkeys>=0.2.0
+cryptography>=42.0.0

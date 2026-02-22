@@ -63,7 +63,7 @@ export function AgentList({ onAuthError }: AgentListProps) {
     <div className="agent-list-container">
       <h2 className="agent-list-header">
         <Shield className="agent-list-title-icon" size={24} />
-        Active Agents
+        Active Security Agents
       </h2>
       <div className="agent-items">
         {agents.length === 0 ? (
@@ -105,7 +105,7 @@ export function AgentList({ onAuthError }: AgentListProps) {
                       {expandedMeta.has(agent.id)
                         ? <ChevronDown size={14} />
                         : <ChevronRight size={14} />}
-                      <span>Node Details</span>
+                      <span>System Details</span>
                     </button>
                   )}
                 </div>

@@ -1,31 +1,37 @@
 :root {
   /* Colors */
-  --bg-color: #0d1117;
-  --bg-secondary: #161b22;
-  --bg-tertiary: #21262d;
-  
-  --text-primary: #c9d1d9;
-  --text-secondary: #8b949e;
-  --text-muted: #484f58;
+  --bg-color: #07090F;
+  /* Very dark slate */
+  --bg-secondary: #0B1120;
+  --bg-tertiary: rgba(15, 23, 42, 0.6);
+  /* Translucent slate */
 
-  --accent-primary: #58a6ff;
-  --accent-secondary: #bc8cff;
-  --accent-success: #3fb950;
-  --accent-warning: #d29922;
-  --accent-error: #f85149;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #475569;
 
-  --border-color: #30363d;
-  --border-active: #8b949e;
+  --accent-primary: #38BDF8;
+  /* Cyan */
+  --accent-secondary: #A855F7;
+  /* Purple for AI */
+  --accent-success: #10B981;
+  --accent-warning: #F59E0B;
+  --accent-error: #F43F5E;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 0 rgba(27, 31, 35, 0.04);
-  --shadow-md: 0 3px 6px rgba(140, 149, 159, 0.15);
-  --shadow-lg: 0 8px 24px rgba(140, 149, 159, 0.2);
-  --glow-primary: 0 0 10px rgba(88, 166, 255, 0.3);
+  --border-color: rgba(51, 65, 85, 0.4);
+  --border-active: rgba(56, 189, 248, 0.5);
+
+  /* Shadows & Glows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --glow-primary: 0 0 15px rgba(56, 189, 248, 0.15);
+  --glow-ai: 0 0 20px rgba(168, 85, 247, 0.15);
+  --glow-error: 0 0 20px rgba(244, 63, 94, 0.15);
 
   /* Typography */
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-  --font-mono: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+  --font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, Monaco, monospace;
 
   /* Spacing */
   --space-xs: 4px;
@@ -36,12 +42,12 @@
   --space-xxl: 48px;
 
   /* Border Radius */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 12px;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
   --radius-full: 9999px;
 
   /* Transitions */
-  --transition-fast: 0.15s ease-in-out;
-  --transition-normal: 0.3s ease-in-out;
+  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }

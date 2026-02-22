@@ -22,6 +22,7 @@ class EventEmitterService:
     def __init__(self):
         self._running = False
         self.nc = NATS()
+        self.js = None
         self._buffer = deque(maxlen=1000)
         self._flush_task = None
 
@@ -36,7 +37,8 @@ class EventEmitterService:
                 reconnect_time_wait=2,
                 max_reconnect_attempts=-1
             )
-            logger.info(f"Connected to NATS at {settings.NATS_URL}")
+            self.js = self.nc.jetstream()
+            logger.info(f"Connected to NATS at {settings.NATS_URL} with JetStream.")
         except Exception as e:
             logger.error(f"Failed to connect to NATS initially: {e}")
             # Continue running to allow buffering
@@ -58,10 +60,10 @@ class EventEmitterService:
 
     async def _flush_loop(self):
         """
-        Periodically attempts to flush the buffer to NATS.
+        Periodically attempts to flush the buffer to NATS via JetStream.
         """
         while self._running:
-            if self.nc.is_connected and self._buffer:
+            if self.nc.is_connected and self.js and self._buffer:
                 logger.info(f"Flushing {len(self._buffer)} buffered events...")
                 while self._buffer:
                     if not self.nc.is_connected:
@@ -71,7 +73,7 @@ class EventEmitterService:
                     try:
                         subject = f"n7.events.{settings.AGENT_TYPE}.{settings.AGENT_SUBTYPE}"
                         payload = json.dumps(event_data).encode()
-                        await self.nc.publish(subject, payload)
+                        await self.js.publish(subject, payload)
                         self._buffer.popleft()  # Remove only after successful publish (or at least sent)
                     except Exception as e:
                         logger.error(f"Failed to flush event: {e}")
@@ -89,13 +91,13 @@ class EventEmitterService:
 
     async def emit(self, event_data: dict):
         """
-        Publishes an event to NATS or buffers it.
+        Publishes an event to NATS via JetStream or buffers it.
         """
         event_data = self._stamp(event_data)
-        if not self.nc.is_connected:
+        if not self.nc.is_connected or not self.js:
             if self._buffer.maxlen and len(self._buffer) < self._buffer.maxlen:
                 self._buffer.append(event_data)
-                logger.warning(f"NATS not connected. Buffered event. Buffer size: {len(self._buffer)}")
+                logger.warning(f"NATS/JetStream not connected. Buffered event. Buffer size: {len(self._buffer)}")
             elif self._buffer.maxlen is None:  # Should not happen with maxlen=1000 but for type safety
                 self._buffer.append(event_data)
             else:
@@ -105,7 +107,8 @@ class EventEmitterService:
         try:
             subject = f"n7.events.{settings.AGENT_TYPE}.{settings.AGENT_SUBTYPE}"
             payload = json.dumps(event_data).encode()
-            await self.nc.publish(subject, payload)
+            # Awaiting js.publish ensures JetStream received and stored the event
+            await self.js.publish(subject, payload)
         except Exception as e:
             logger.error(f"Failed to emit event: {e}")
             # Try to buffer if publish failed

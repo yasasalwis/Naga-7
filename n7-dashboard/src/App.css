@@ -2,20 +2,23 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-color: var(--bg-color);
   background-image:
-    radial-gradient(circle at 50% 0%, #1c2128 0%, transparent 70%),
-    linear-gradient(180deg, var(--bg-color) 0%, var(--bg-secondary) 100%);
+    radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.05), transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.05), transparent 25%);
+  background-attachment: fixed;
 }
 
 .app-header {
-  background-color: rgba(22, 27, 34, 0.8);
-  backdrop-filter: blur(10px);
+  background-color: rgba(11, 17, 32, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border-color);
   padding: var(--space-md) 0;
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
 }
 
 .header-content {
@@ -55,9 +58,10 @@
 }
 
 .header-title h1 {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
+  font-weight: 700;
   letter-spacing: -0.5px;
-  background: linear-gradient(90deg, #fff, #8b949e);
+  background: linear-gradient(135deg, #fff 0%, #94A3B8 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

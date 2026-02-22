@@ -43,15 +43,20 @@ function App() {
 
       <main className="main-content">
         <div className="dashboard-grid">
-          <div className="grid-item">
-            <AgentList onAuthError={handleLogout} />
-          </div>
-          <div className="grid-item">
-            <EventStream />
-          </div>
+          {/* Top Priority: Alert Triage & AI Recommendations */}
           <div className="grid-item grid-item--full">
             <AlertPanel />
           </div>
+
+          {/* Second Row: Events & Active Agents */}
+          <div className="grid-item">
+            <EventStream />
+          </div>
+          <div className="grid-item">
+            <AgentList onAuthError={handleLogout} />
+          </div>
+
+          {/* Infrastructure */}
           <div className="grid-item grid-item--full">
             <NodeDeployment onAuthError={handleLogout} />
           </div>

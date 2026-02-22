@@ -57,6 +57,14 @@ class Agent(AgentBase):
         return data
 
 
+class AgentRegisterResponse(Agent):
+    """Registration response — extends Agent with one-time mTLS credentials.
+    These fields are never stored in the DB and are only returned at registration time."""
+    client_cert: Optional[str] = None
+    client_key: Optional[str] = None
+    ca_cert: Optional[str] = None  # CA cert agents use to verify the NATS server
+
+
 class AgentConfigUpdate(BaseModel):
     """Request body for PUT /agents/{agent_id}/config — user-authenticated.
     Shared fields apply to all agent types. Sentinel/striker-specific fields

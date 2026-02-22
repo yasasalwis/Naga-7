@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { NodeEditModal } from './NodeEditModal';
+import { Server } from 'lucide-react';
 import './NodeDeployment.css';
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/api/v1`;
@@ -195,13 +196,8 @@ export function NodeDeployment({ onAuthError }: NodeDeploymentProps = {}) {
       {/* ── Header ── */}
       <div className="nd-header">
         <div className="nd-title">
-          {/* monitor icon */}
-          <svg className="nd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="3" width="20" height="14" rx="2" />
-            <line x1="8" y1="21" x2="16" y2="21" />
-            <line x1="12" y1="17" x2="12" y2="21" />
-          </svg>
-          Node Deployment
+          <Server className="nd-icon" />
+          <span>Manage Infrastructure Nodes</span>
         </div>
         <span className="nd-count-pill">{nodes.length} node{nodes.length !== 1 ? 's' : ''}</span>
       </div>

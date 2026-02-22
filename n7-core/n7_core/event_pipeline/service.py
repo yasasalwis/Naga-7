@@ -39,16 +39,20 @@ class EventPipelineService(BaseService):
         self._running = True
         logger.info("EventPipelineService started.")
 
-        # Subscribe to Sentinel events
-        if nats_client.nc and nats_client.nc.is_connected:
-            await nats_client.nc.subscribe(
-                "n7.events.>",
-                cb=self.handle_event,
-                queue="event_pipeline"
-            )
-            logger.info("Subscribed to n7.events.>")
+        # Subscribe to Sentinel events via JetStream
+        if nats_client.nc and nats_client.nc.is_connected and nats_client.js:
+            try:
+                await nats_client.js.subscribe(
+                    "n7.events.>",
+                    cb=self.handle_event,
+                    durable="event_pipeline_durable",
+                    queue="event_pipeline"
+                )
+                logger.info("Subscribed to JetStream n7.events.> (durable: event_pipeline_durable)")
+            except Exception as e:
+                logger.error(f"Failed to subscribe to JetStream: {e}")
         else:
-            logger.warning("NATS not connected, EventPipelineService waiting for connection...")
+            logger.warning("NATS/JetStream not connected, EventPipelineService waiting for connection...")
 
         self._flush_task = asyncio.create_task(self._flush_loop())
 

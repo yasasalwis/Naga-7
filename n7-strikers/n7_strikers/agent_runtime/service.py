@@ -297,6 +297,38 @@ class AgentRuntimeService:
                         self._agent_id = data.get("id")
                         set_agent_id(self._agent_id)
                         logger.info(f"Successfully registered agent {self._agent_id}")
+                        
+                        client_cert = data.get("client_cert")
+                        client_key = data.get("client_key")
+                        ca_cert = data.get("ca_cert")
+                        if client_cert and client_key:
+                            certs_dir = Path("agent_certs")
+                            certs_dir.mkdir(exist_ok=True)
+                            cert_path = certs_dir / "client.crt"
+                            key_path = certs_dir / "client.key"
+                            cert_path.write_text(client_cert)
+                            key_path.write_text(client_key)
+                            os.chmod(key_path, 0o600)
+                            if ca_cert:
+                                (certs_dir / "ca.crt").write_text(ca_cert)
+                            
+                            logger.info("Saved mTLS certificates from Core.")
+                            # Switch session to use mTLS
+                            import ssl
+                            ssl_context = ssl.create_default_context()
+                            ssl_context.check_hostname = False
+                            ssl_context.verify_mode = ssl.CERT_NONE
+                            ssl_context.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
+                            
+                            connector = aiohttp.TCPConnector(ssl=ssl_context)
+                            await self._session.close()
+                            self._session = aiohttp.ClientSession(connector=connector)
+                            
+                            # Update API URL to point to mTLS port
+                            if "8000" in settings.CORE_API_URL:
+                                settings.CORE_API_URL = settings.CORE_API_URL.replace("http://", "https://").replace("8000", "8443")
+                                logger.info(f"Switched HTTP session to mTLS at {settings.CORE_API_URL}")
+
                         return
                     else:
                         text = await resp.text()

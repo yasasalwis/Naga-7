@@ -8,9 +8,14 @@ import json
 import logging
 import uuid as _uuid
 from typing import List, Optional
+import os
+import time
+import base64
+import nkeys
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+from ..auth import get_current_active_user
 
 from ...database.session import async_session_maker
 from ...messaging.nats_client import nats_client
@@ -42,6 +47,64 @@ class DispatchResult(BaseModel):
     action_id: str
     status: str               # queued | error
     error: Optional[str] = None
+
+
+@router.get("/ws-token")
+async def get_ws_token(current_user=Depends(get_current_active_user)):
+    """
+    Generate a short-lived, read-only NATS User JWT for the dashboard.
+    Ref: SRS FR-D004 Real-time alerts
+    """
+    try:
+        # Load Account Seed
+        seed_path = os.path.join(os.path.dirname(__file__), "..", "..", "certs", "account.seed")
+        with open(seed_path, "rb") as f:
+            account_seed = f.read().strip()
+            
+        # Generate ephemeral User NKey
+        user_key = nkeys.gen_key(nkeys.PREFIX_BYTE_USER)
+        user_pub = user_key.public_key.decode()
+        
+        # Issuer is the Account
+        account_pub = nkeys.from_seed(account_seed).public_key.decode()
+        
+        iat = int(time.time())
+        exp = iat + 86400  # 24 hour expiration for demo
+        
+        claims = {
+            "jti": base64.urlsafe_b64encode(os.urandom(24)).decode().rstrip('='),
+            "iat": iat,
+            "exp": exp,
+            "iss": account_pub,
+            "name": f"dashboard-{current_user.username}",
+            "sub": user_pub,
+            "nats": {
+                "type": "user",
+                "version": 2,
+                "pub": {},  # No publish permissions
+                "sub": {"allow": ["n7.alerts.critical.new", "n7.actions.>"]},
+            }
+        }
+        
+        # Sign the JWT
+        header = {"typ": "jwt", "alg": "ed25519-nkey"}
+        header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip('=')
+        claims_b64 = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip('=')
+        payload = f"{header_b64}.{claims_b64}"
+        
+        sig = nkeys.from_seed(account_seed).sign(payload.encode())
+        sig_b64 = base64.urlsafe_b64encode(sig).decode().rstrip('=')
+        
+        jwt_token = f"{payload}.{sig_b64}"
+        user_seed = user_key.seed().decode()
+        
+        return {
+            "jwt": jwt_token,
+            "seed": user_seed
+        }
+    except Exception as e:
+        logger.error(f"Failed to generate ws-token: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate WebSocket token")
 
 
 @router.get("/")

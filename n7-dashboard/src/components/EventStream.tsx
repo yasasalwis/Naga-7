@@ -61,7 +61,7 @@ export function EventStream() {
         <div className="event-stream-container">
             <h2 className="event-stream-header">
                 <Activity className="event-stream-title-icon" size={24} />
-                Event Stream
+                Recent Security Events
             </h2>
             <div className="event-list">
                 {status === 'loading' && <p className="event-stream-empty">Loading events…</p>}
@@ -78,9 +78,9 @@ export function EventStream() {
                         <p className="event-class">{evt.event_class}</p>
                         {evt.enrichments?.llm_recommendation && (
                             <div className="event-llm-recommendation">
-                                <Brain size={14} className="event-llm-icon" />
+                                <Brain size={16} className="event-llm-icon" />
                                 <div style={{ flex: 1 }}>
-                                    <strong>AI Insight:</strong> {
+                                    <strong>AI Analysis:</strong> {
                                         typeof evt.enrichments.llm_recommendation === 'string'
                                             ? evt.enrichments.llm_recommendation
                                             : evt.enrichments.llm_recommendation.insight || JSON.stringify(evt.enrichments.llm_recommendation)
@@ -88,15 +88,15 @@ export function EventStream() {
                                 </div>
                                 {typeof evt.enrichments.llm_recommendation === 'object' && evt.enrichments.llm_recommendation.recommended_action && (
                                     <button
-                                        className="nd-btn nd-btn--deploy"
-                                        style={{ padding: '4px 8px', fontSize: '0.75rem', height: 'auto' }}
+                                        className="nd-btn nd-btn--deploy event-strike-btn"
+                                        style={{ padding: '6px 12px', fontSize: '0.8rem', height: 'auto', fontWeight: 'bold' }}
                                         onClick={() => handleStrike(
                                             evt.event_id,
                                             evt.enrichments.llm_recommendation.recommended_action.action_type,
                                             evt.enrichments.llm_recommendation.recommended_action.target
                                         )}
                                     >
-                                        ⚡ Strike
+                                        ⚡ Take Action
                                     </button>
                                 )}
                             </div>

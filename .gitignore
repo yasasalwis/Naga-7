@@ -52,3 +52,9 @@ htmlcov/
 *.pyc
 .naga7.pids
 .agent_api_key.env
+*.key
+*.crt
+*.jwt
+*.pub
+*.seed
+.agent_id

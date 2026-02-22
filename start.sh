@@ -53,8 +53,8 @@ log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()    { echo -e "${MAGENTA}[STEP]${NC} $1"; }
 
 get_python_cmd() {
-    if   [ -f ".venv/bin/python" ]; then echo ".venv/bin/python"
-    elif [ -f "venv/bin/python"  ]; then echo "venv/bin/python"
+    if   [ -f ".venv/bin/python" ]; then echo "$(pwd)/.venv/bin/python"
+    elif [ -f "venv/bin/python"  ]; then echo "$(pwd)/venv/bin/python"
     else echo "python3"; fi
 }
 
@@ -332,29 +332,10 @@ command -v docker-compose &>/dev/null || docker compose version &>/dev/null \
 log_success "Docker Compose found"
 
 # ============================================================================
-# Step 2: Infrastructure
-# ============================================================================
-log_step "Step 2/7: Starting infrastructure services (NATS, PostgreSQL, Redis)..."
-
-cd "$SCRIPT_DIR/deploy"
-docker-compose up -d
-log_info "Waiting for services to be ready..."
-sleep 5
-
-docker-compose ps | grep -q "Up" \
-    || { log_error "Infrastructure failed to start. Run: docker-compose logs"; exit 1; }
-
-log_success "Infrastructure services started"
-log_info "  NATS:       localhost:4222  (monitor: localhost:8222)"
-log_info "  PostgreSQL: localhost:5432"
-log_info "  Redis:      localhost:6379"
-cd "$SCRIPT_DIR"
-
-# ============================================================================
-# Step 3: Python dependencies
+# Step 2: Python dependencies
 # ============================================================================
 if [ "$SKIP_DEPS" = false ]; then
-    log_step "Step 3/8: Installing Python dependencies..."
+    log_step "Step 2/9: Installing Python dependencies..."
 
     for component in n7-core n7-sentinels n7-strikers; do
         log_info "Installing $component dependencies..."
@@ -370,6 +351,35 @@ if [ "$SKIP_DEPS" = false ]; then
 else
     log_warning "Skipping Python dependency installation (--skip-deps)"
 fi
+
+# ============================================================================
+# Step 3: Generate Certificates and NATS Auth
+# ============================================================================
+log_step "Step 3/9: Generating Certificates and NATS JWTs..."
+cd "$SCRIPT_DIR/n7-core"
+PYTHON_CMD=$(get_python_cmd)
+cd "$SCRIPT_DIR/scripts"
+$PYTHON_CMD generate_certs_and_jwt.py || { log_error "Failed to generate certificates."; exit 1; }
+cd "$SCRIPT_DIR"
+
+# ============================================================================
+# Step 4: Infrastructure
+# ============================================================================
+log_step "Step 4/9: Starting infrastructure services (NATS, PostgreSQL, Redis)..."
+
+cd "$SCRIPT_DIR/deploy"
+docker-compose up -d
+log_info "Waiting for services to be ready..."
+sleep 5
+
+docker-compose ps | grep -q "Up" \
+    || { log_error "Infrastructure failed to start. Run: docker-compose logs"; exit 1; }
+
+log_success "Infrastructure services started"
+log_info "  NATS:       localhost:4222  (monitor: localhost:8222)"
+log_info "  PostgreSQL: localhost:5432"
+log_info "  Redis:      localhost:6379"
+cd "$SCRIPT_DIR"
 
 # ============================================================================
 # Step 4: Dashboard dependencies

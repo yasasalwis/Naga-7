@@ -89,36 +89,11 @@ if errorlevel 1 (
 echo [SUCCESS] Docker Compose found
 
 REM ============================================================================
-REM Step 2: Start Infrastructure Services
-REM ============================================================================
-echo.
-echo [STEP] Step 2/7: Starting infrastructure services (NATS, PostgreSQL, Redis)...
-
-cd /d "%SCRIPT_DIR%\deploy"
-docker-compose up -d
-if errorlevel 1 (
-    echo [ERROR] Failed to start infrastructure services
-    pause
-    exit /b 1
-)
-
-REM Wait for services to be ready
-echo [INFO] Waiting for services to be ready...
-timeout /t 5 /nobreak >nul
-
-echo [SUCCESS] Infrastructure services started
-echo [INFO]   - NATS: localhost:4222 (monitoring: localhost:8222)
-echo [INFO]   - PostgreSQL: localhost:5432
-echo [INFO]   - Redis: localhost:6379
-
-cd /d "%SCRIPT_DIR%"
-
-REM ============================================================================
-REM Step 3: Install Python Dependencies
+REM Step 2: Install Python Dependencies
 REM ============================================================================
 if "%SKIP_DEPS%"=="false" (
     echo.
-    echo [STEP] Step 3/7: Installing Python dependencies...
+    echo [STEP] Step 2/8: Installing Python dependencies...
     
     echo [INFO] Installing n7-core dependencies...
     cd /d "%SCRIPT_DIR%\n7-core"
@@ -152,6 +127,45 @@ if "%SKIP_DEPS%"=="false" (
 ) else (
     echo [WARNING] Skipping Python dependency installation (--skip-deps)
 )
+
+REM ============================================================================
+REM Step 3: Generate Certificates and NATS Auth
+REM ============================================================================
+echo.
+echo [STEP] Step 3/8: Generating Certificates and NATS JWTs...
+cd /d "%SCRIPT_DIR%\scripts"
+python generate_certs_and_jwt.py
+if errorlevel 1 (
+    echo [ERROR] Failed to generate certificates.
+    pause
+    exit /b 1
+)
+cd /d "%SCRIPT_DIR%"
+
+REM ============================================================================
+REM Step 4: Start Infrastructure Services
+REM ============================================================================
+echo.
+echo [STEP] Step 4/8: Starting infrastructure services (NATS, PostgreSQL, Redis)...
+
+cd /d "%SCRIPT_DIR%\deploy"
+docker-compose up -d
+if errorlevel 1 (
+    echo [ERROR] Failed to start infrastructure services
+    pause
+    exit /b 1
+)
+
+REM Wait for services to be ready
+echo [INFO] Waiting for services to be ready...
+timeout /t 5 /nobreak >nul
+
+echo [SUCCESS] Infrastructure services started
+echo [INFO]   - NATS: localhost:4222 (monitoring: localhost:8222)
+echo [INFO]   - PostgreSQL: localhost:5432
+echo [INFO]   - Redis: localhost:6379
+
+cd /d "%SCRIPT_DIR%"
 
 REM ============================================================================
 REM Step 4: Install Dashboard Dependencies

@@ -74,15 +74,43 @@ class APIGatewayService(BaseService):
     def __init__(self):
         super().__init__("APIGatewayService")
         self._server = None
+        self._internal_server = None
 
     async def start(self):
         logger.info(f"APIGatewayService ensuring startup on {settings.API_HOST}:{settings.API_PORT}")
         config = Config(app=app, host=settings.API_HOST, port=settings.API_PORT, log_level="info")
         self._server = Server(config)
-        # Run uvicorn in a separate task
         asyncio.create_task(self._server.serve())
+
+        # Start Internal mTLS server on port 8443
+        import os
+        import ssl
+        
+        certs_dir = os.path.join(os.path.dirname(__file__), "..", "certs")
+        ca_cert_path = os.path.join(certs_dir, "core-ca.crt")
+        server_cert_path = os.path.join(certs_dir, "api-server.crt")
+        server_key_path = os.path.join(certs_dir, "api-server.key")
+        
+        if os.path.exists(ca_cert_path) and os.path.exists(server_cert_path):
+            logger.info("Starting internal mTLS API server on port 8443...")
+            internal_config = Config(
+                app=app,
+                host=settings.API_HOST,
+                port=8443,
+                log_level="info",
+                ssl_keyfile=server_key_path,
+                ssl_certfile=server_cert_path,
+                ssl_ca_certs=ca_cert_path,
+                ssl_cert_reqs=ssl.CERT_REQUIRED
+            )
+            self._internal_server = Server(internal_config)
+            asyncio.create_task(self._internal_server.serve())
+        else:
+            logger.warning("mTLS certificates not found. Internal mTLS server (8443) will NOT start.")
 
     async def stop(self):
         if self._server:
             self._server.should_exit = True
+        if self._internal_server:
+            self._internal_server.should_exit = True
         logger.info("APIGatewayService stopped.")
