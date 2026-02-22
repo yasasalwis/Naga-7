@@ -46,7 +46,6 @@ class EventPipelineService(BaseService):
                     "n7.events.>",
                     cb=self.handle_event,
                     durable="event_pipeline_durable",
-                    queue="event_pipeline"
                 )
                 logger.info("Subscribed to JetStream n7.events.> (durable: event_pipeline_durable)")
             except Exception as e:
@@ -115,8 +114,22 @@ class EventPipelineService(BaseService):
             # Parse JSON payload sent by EventEmitterService
             event_dict = json.loads(msg.data.decode())
 
-            event_id = event_dict.get("event_id", str(__import__("uuid").uuid4()))
-            sentinel_id = event_dict.get("sentinel_id", "unknown")
+            import uuid as _uuid
+            event_id = event_dict.get("event_id") or str(_uuid.uuid4())
+            # Ensure event_id is a valid UUID string; generate one if malformed
+            try:
+                _uuid.UUID(str(event_id))
+            except (ValueError, AttributeError):
+                event_id = str(_uuid.uuid4())
+
+            # sentinel_id must be a valid UUID for the DB column; fall back to a
+            # deterministic nil-UUID so rows still persist rather than crashing.
+            _raw_sentinel_id = event_dict.get("sentinel_id", "")
+            try:
+                sentinel_id = str(_uuid.UUID(str(_raw_sentinel_id)))
+            except (ValueError, AttributeError):
+                sentinel_id = str(_uuid.UUID(int=0))  # 00000000-0000-0000-0000-000000000000
+
             event_class = event_dict.get("event_class", "unknown")
             severity = event_dict.get("severity", "informational")
             raw_data = event_dict.get("raw_data", {})
@@ -172,7 +185,7 @@ class EventPipelineService(BaseService):
                 asyncio.create_task(self._flush_buffer())
 
             # 4. Forward to Threat Correlation (via NATS subject) as Protobuf
-            if nats_client.nc:
+            if nats_client.nc and nats_client.nc.is_connected:
                 proto_event = ProtoEvent(
                     event_id=event_id,
                     timestamp=ts.isoformat(),

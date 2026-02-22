@@ -53,7 +53,8 @@ export function OverviewPanel({ onNavigate }: OverviewPanelProps) {
       // IOC stats — may not be available
       try {
         const iocRes = await axios.get(`${API_BASE}/api/v1/threat-intel/stats`);
-        setIocStats(iocRes.data);
+        // API returns { status, ioc_counts: { ip, domain, url, hash, other, total } }
+        setIocStats(iocRes.data.ioc_counts ?? iocRes.data);
       } catch { /* IOC stats optional */ }
     } catch (err) {
       console.error('Overview fetch failed', err);

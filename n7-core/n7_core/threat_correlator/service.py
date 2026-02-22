@@ -252,6 +252,10 @@ class ThreatCorrelatorService(BaseService):
 
         return True
 
+    # Cooldown window (seconds) before the same rule+source triggers another LLM analysis.
+    # This prevents alert floods when a persistent condition (e.g. high CPU) keeps firing.
+    ALERT_COOLDOWN = 300  # 5 minutes
+
     async def _create_alert(
             self,
             rule_id: str,
@@ -261,7 +265,14 @@ class ThreatCorrelatorService(BaseService):
             count: int,
             is_multi_stage: bool = False
     ):
-        """Create and publish an alert"""
+        """Create and publish an alert, suppressing LLM re-analysis during cooldown."""
+        # --- Cooldown guard -----------------------------------------------------------
+        # Persist an alert entry every time the rule fires so the DB reflects reality,
+        # but only send to the LLM when the cooldown key is absent.  This prevents
+        # flooding the LLM with the same recurring condition (e.g. CPU always high).
+        cooldown_key = f"n7:alert_cooldown:{rule_id}:{source_identifier}"
+        in_cooldown = await redis_client.get(cooldown_key)
+
         alert_id = str(uuid.uuid4())
         severity = rule.get("severity", "medium")
 
@@ -309,6 +320,18 @@ class ThreatCorrelatorService(BaseService):
 
         # Route through LLM Analyzer instead of publishing directly to n7.alerts.
         # LLMAnalyzerService enriches the alert with a narrative then forwards to n7.alerts.
+        if in_cooldown:
+            # Same rule+source already analyzed recently — skip LLM to prevent flooding.
+            # The alert is already persisted to DB above; just log and return.
+            logger.info(
+                f"Alert cooldown active for rule '{rule['name']}' / source '{source_identifier}' "
+                f"— skipping LLM re-analysis until cooldown expires."
+            )
+            return
+
+        # Set cooldown BEFORE publishing so parallel firings don't race through
+        await redis_client.set(cooldown_key, "1", ex=self.ALERT_COOLDOWN)
+
         llm_bundle = {
             "alert_id": alert_id,
             "reasoning": reasoning,
@@ -318,7 +341,7 @@ class ThreatCorrelatorService(BaseService):
             "affected_assets": [source_identifier],
             "event_summaries": self._build_event_summaries(source_identifier, event_ids),
         }
-        if nats_client.nc:
+        if nats_client.nc and nats_client.nc.is_connected:
             await nats_client.nc.publish("n7.llm.analyze", json.dumps(llm_bundle).encode())
             logger.info(f"Sent alert bundle {alert_id} to n7.llm.analyze for rule '{rule['name']}'")
 

@@ -97,7 +97,62 @@ CORRELATION_RULES = {
         "mitre_techniques": ["T1486"]  # Data Encrypted for Impact
     },
 
-    # Rule 6: Honeytoken File Access — Active Deception / Endpoint Deception Engine
+    # Rule 6: IOC Match — event was enriched with a known-malicious indicator
+    # Triggered by EventPipeline when ThreatIntelService finds an IOC match in raw_data.
+    # The pipeline sets ioc_matched=True in raw_data before forwarding.
+    "ioc_match": {
+        "name": "Threat Intel IOC Match",
+        "description": (
+            "An event's raw data matched a known-malicious Indicator of Compromise "
+            "(IP, domain, URL, or file hash) from the threat intelligence feed."
+        ),
+        "pattern": {
+            "ioc_matched": True
+        },
+        "threshold": 1,
+        "time_window": 300,
+        "severity": "critical",
+        "mitre_tactics": ["TA0043"],   # Reconnaissance
+        "mitre_techniques": ["T1595"]  # Active Scanning
+    },
+
+    # Rule 7: High CPU Usage — endpoint resource anomaly from SystemProbe
+    # Sentinel emits event_class="endpoint" with description containing "High CPU Usage"
+    "high_cpu_usage": {
+        "name": "Sustained High CPU Usage",
+        "description": (
+            "A monitored endpoint is reporting sustained high CPU utilisation, "
+            "which may indicate a crypto-miner, denial-of-service, or runaway process."
+        ),
+        "pattern": {
+            "event_class": "endpoint",
+            "description_regex": r"High CPU Usage"
+        },
+        "threshold": 1,
+        "time_window": 120,
+        "severity": "high",
+        "mitre_tactics": ["TA0040"],   # Impact
+        "mitre_techniques": ["T1496"]  # Resource Hijacking
+    },
+
+    # Rule 8: High Memory Usage — endpoint resource anomaly from SystemProbe
+    "high_memory_usage": {
+        "name": "Sustained High Memory Usage",
+        "description": (
+            "A monitored endpoint is reporting sustained high memory utilisation."
+        ),
+        "pattern": {
+            "event_class": "endpoint",
+            "description_regex": r"High Memory Usage"
+        },
+        "threshold": 1,
+        "time_window": 120,
+        "severity": "high",
+        "mitre_tactics": ["TA0040"],
+        "mitre_techniques": ["T1496"]
+    },
+
+    # Rule 9: Honeytoken File Access — Active Deception / Endpoint Deception Engine
     # Threshold=1: any single access to a decoy file is 100% confidence.
     # Legitimate users will never see or interact with honeytoken files.
     "honeytoken_access": {

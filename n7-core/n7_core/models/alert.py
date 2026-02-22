@@ -1,6 +1,8 @@
+import uuid as _uuid
 from typing import Optional
 
 from sqlalchemy import String, JSON, Integer, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database.base import Base, UUIDMixin, TimestampMixin
@@ -12,6 +14,12 @@ class Alert(Base, UUIDMixin, TimestampMixin):
     Ref: TDD Section 4.5 Data Architecture
     """
     __tablename__ = "alerts"
+
+    # alert_id is the public-facing UUID assigned by ThreatCorrelator/LLMAnalyzer.
+    # UUIDMixin.id is the internal surrogate primary key.
+    alert_id: Mapped[_uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), unique=True, nullable=False, default=_uuid.uuid4
+    )
 
     # We store event_ids as a JSON array or PostgreSQL array.
     # Using JSON for broader compatibility, but ARRAY(UUID) is better for Postgres.

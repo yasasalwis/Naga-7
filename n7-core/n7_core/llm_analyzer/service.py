@@ -77,12 +77,7 @@ class LLMAnalyzerService(BaseService):
                 cb=self._handle_analyze_request,
                 queue="llm_analyzer",
             )
-            await nats_client.nc.subscribe(
-                "n7.internal.events",
-                cb=self._handle_event_analyze_request,
-                queue="llm_analyzer_events",
-            )
-            logger.info("Subscribed to n7.llm.analyze and n7.internal.events")
+            logger.info("Subscribed to n7.llm.analyze")
         else:
             logger.warning("NATS not connected — LLMAnalyzerService subscription deferred.")
 
