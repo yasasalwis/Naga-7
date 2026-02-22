@@ -1,0 +1,459 @@
+/* ============================================================
+   Overview Panel — SOC Dashboard Summary
+   ============================================================ */
+
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ── Metric Cards Row ── */
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+}
+
+@media (max-width: 1200px) {
+  .overview-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .overview-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+.metric-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.metric-card:hover {
+  border-color: var(--card-hover-border);
+  box-shadow: var(--shadow-md);
+}
+
+.metric-card--alert {
+  border-top: 2px solid var(--accent-error);
+}
+
+.metric-card--ok {
+  border-top: 2px solid var(--accent-success);
+}
+
+.metric-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.metric-icon--threats {
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--accent-error);
+}
+
+.metric-icon--agents {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--accent-success);
+}
+
+.metric-icon--events {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent-primary);
+}
+
+.metric-icon--ioc {
+  background: rgba(168, 85, 247, 0.12);
+  color: var(--accent-secondary);
+}
+
+.metric-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.metric-value-sub {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.metric-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* ── Two-column grid ── */
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+}
+
+@media (max-width: 900px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Card ── */
+.overview-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.overview-card--full {
+  grid-column: 1 / -1;
+}
+
+.overview-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--card-border);
+}
+
+.overview-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.overview-card-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.overview-see-all {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  padding: 0;
+}
+
+.overview-see-all:hover {
+  color: #7dd3fc;
+}
+
+.overview-card-body {
+  padding: var(--space-lg);
+}
+
+/* ── Empty state ── */
+.overview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-muted);
+  padding: var(--space-xl) 0;
+}
+
+.overview-empty p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.overview-empty svg {
+  color: var(--accent-success);
+  opacity: 0.6;
+}
+
+/* ── Critical alerts list ── */
+.critical-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.critical-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background var(--transition-fast);
+  color: inherit;
+  font-family: inherit;
+}
+
+.critical-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.critical-severity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.critical-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.critical-rule {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.critical-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.critical-score {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent-error);
+  min-width: 30px;
+  text-align: right;
+}
+
+/* ── Agent Health ── */
+.agent-health-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+}
+
+.agent-health-ring {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.health-ring-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.health-ring-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.health-ring-value {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.health-ring-sub {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.agent-health-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.health-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.84rem;
+}
+
+.health-stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.health-stat-dot--active {
+  background: var(--accent-success);
+}
+
+.health-stat-dot--stale {
+  background: var(--accent-warning);
+}
+
+.health-stat-label {
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.health-stat-value {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Stale agents */
+.stale-agents {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--card-border);
+}
+
+.stale-agents-heading {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-warning);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-sm);
+}
+
+.stale-agent-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 4px 0;
+  font-size: 0.78rem;
+}
+
+.stale-agent-id {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.stale-agent-type {
+  color: var(--text-muted);
+}
+
+.stale-agent-hb {
+  margin-left: auto;
+  color: var(--accent-warning);
+  font-size: 0.72rem;
+}
+
+/* ── Severity Distribution Bar ── */
+.severity-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.severity-bar {
+  display: flex;
+  height: 12px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--bg-color);
+}
+
+.severity-segment {
+  transition: width var(--transition-normal);
+  min-width: 0;
+}
+
+.severity-segment--critical {
+  background: #ef4444;
+}
+
+.severity-segment--high {
+  background: #f97316;
+}
+
+.severity-segment--medium {
+  background: #eab308;
+}
+
+.severity-segment--low {
+  background: #22c55e;
+}
+
+.severity-segment--empty {
+  background: var(--border-color);
+}
+
+.severity-legend {
+  display: flex;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-dot--critical {
+  background: #ef4444;
+}
+
+.legend-dot--high {
+  background: #f97316;
+}
+
+.legend-dot--medium {
+  background: #eab308;
+}
+
+.legend-dot--low {
+  background: #22c55e;
+}

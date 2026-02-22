@@ -1,16 +1,38 @@
 import { useState } from 'react';
 import './App.css';
-import { AgentList } from './components/AgentList';
-import { AlertPanel } from './components/AlertPanel';
-import { EventStream } from './components/EventStream';
-import { NodeDeployment } from './components/NodeDeployment';
 import { LoginPage } from './components/LoginPage';
-import { Shield, LogOut } from 'lucide-react';
+import { OverviewPanel } from './components/OverviewPanel';
+import { IncidentPanel } from './components/IncidentPanel';
+import { EventStream } from './components/EventStream';
+import { AgentList } from './components/AgentList';
+import { NodeDeployment } from './components/NodeDeployment';
+import {
+  LayoutDashboard, Brain, Activity, Shield, Server,
+  LogOut, PanelLeftClose, PanelLeft, Zap,
+} from 'lucide-react';
+
+type TabId = 'overview' | 'incidents' | 'events' | 'agents' | 'infrastructure';
+
+interface TabDef {
+  id: TabId;
+  label: string;
+  icon: typeof LayoutDashboard;
+}
+
+const tabs: TabDef[] = [
+  { id: 'overview',       label: 'Overview',        icon: LayoutDashboard },
+  { id: 'incidents',      label: 'Incidents',       icon: Brain },
+  { id: 'events',         label: 'Events',          icon: Activity },
+  { id: 'agents',         label: 'Agents',          icon: Shield },
+  { id: 'infrastructure', label: 'Infrastructure',  icon: Server },
+];
 
 function App() {
   const [token, setToken] = useState<string | null>(
     () => localStorage.getItem('n7_token')
   );
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const handleLogin = (newToken: string) => {
     setToken(newToken);
@@ -25,49 +47,95 @@ function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
+  const currentTab = tabs.find(t => t.id === activeTab)!;
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return <OverviewPanel onNavigate={setActiveTab} />;
+      case 'incidents':
+        return <IncidentPanel />;
+      case 'events':
+        return <EventStream />;
+      case 'agents':
+        return <AgentList onAuthError={handleLogout} />;
+      case 'infrastructure':
+        return <NodeDeployment onAuthError={handleLogout} />;
+    }
+  };
+
   return (
-    <div className="app-container">
-      <header className="app-header">
-        <div className="header-content">
-          <Shield className="header-icon" />
-          <div className="header-title">
-            <h1>NAGA-7 Dashboard</h1>
-            <p>Security Event Monitoring System</p>
-          </div>
-          <button className="logout-btn" onClick={handleLogout} title="Sign out">
-            <LogOut size={16} />
-            <span>Sign out</span>
+    <div className="app-layout">
+      {/* ── Sidebar ── */}
+      <aside className={`sidebar ${sidebarCollapsed ? 'sidebar--collapsed' : ''}`}>
+        {/* Brand */}
+        <div className="sidebar-brand">
+          <Zap className="sidebar-brand-icon" size={24} />
+          {!sidebarCollapsed && (
+            <div className="sidebar-brand-text">
+              <span className="sidebar-brand-name">NAGA-7</span>
+              <span className="sidebar-brand-sub">Security Platform</span>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <nav className="sidebar-nav">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                className={`sidebar-nav-item ${isActive ? 'sidebar-nav-item--active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+                title={sidebarCollapsed ? tab.label : undefined}
+              >
+                <Icon size={20} className="sidebar-nav-icon" />
+                {!sidebarCollapsed && (
+                  <span className="sidebar-nav-label">{tab.label}</span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Collapse toggle */}
+        <div className="sidebar-footer">
+          <button
+            className="sidebar-collapse-btn"
+            onClick={() => setSidebarCollapsed(prev => !prev)}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed
+              ? <PanelLeft size={18} />
+              : <PanelLeftClose size={18} />
+            }
+            {!sidebarCollapsed && <span>Collapse</span>}
           </button>
         </div>
-      </header>
+      </aside>
 
-      <main className="main-content">
-        <div className="dashboard-grid">
-          {/* Top Priority: Alert Triage & AI Recommendations */}
-          <div className="grid-item grid-item--full">
-            <AlertPanel />
+      {/* ── Main Content ── */}
+      <div className={`content-area ${sidebarCollapsed ? 'content-area--expanded' : ''}`}>
+        {/* Top bar */}
+        <header className="topbar">
+          <div className="topbar-left">
+            <h1 className="topbar-title">{currentTab.label}</h1>
           </div>
+          <div className="topbar-right">
+            <button className="topbar-logout" onClick={handleLogout} title="Sign out">
+              <LogOut size={16} />
+              <span>Sign out</span>
+            </button>
+          </div>
+        </header>
 
-          {/* Second Row: Events & Active Agents */}
-          <div className="grid-item">
-            <EventStream />
-          </div>
-          <div className="grid-item">
-            <AgentList onAuthError={handleLogout} />
-          </div>
-
-          {/* Infrastructure */}
-          <div className="grid-item grid-item--full">
-            <NodeDeployment onAuthError={handleLogout} />
-          </div>
-        </div>
-      </main>
-
-      <footer className="app-footer">
-        <div className="footer-content">
-          NAGA-7 Security Monitoring Platform v0.2.0
-        </div>
-      </footer>
+        {/* Tab content */}
+        <main className="tab-content">
+          {renderContent()}
+        </main>
+      </div>
     </div>
   );
 }

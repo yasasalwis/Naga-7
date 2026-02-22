@@ -50,4 +50,21 @@
   /* Transitions */
   --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 64px;
+  --sidebar-bg: #0A0F1C;
+  --sidebar-border: rgba(51, 65, 85, 0.3);
+  --sidebar-item-hover: rgba(56, 189, 248, 0.08);
+  --sidebar-item-active: rgba(56, 189, 248, 0.12);
+
+  /* Layout */
+  --header-height: 56px;
+  --content-padding: 24px;
+
+  /* Cards */
+  --card-bg: rgba(15, 23, 42, 0.6);
+  --card-border: rgba(51, 65, 85, 0.4);
+  --card-hover-border: rgba(56, 189, 248, 0.3);
 }
