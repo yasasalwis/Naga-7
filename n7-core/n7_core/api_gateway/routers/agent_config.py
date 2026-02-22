@@ -24,6 +24,7 @@ async def get_agent_config(
 
     Authentication: X-Agent-API-Key header (same key used for heartbeats).
     Authorization: agents can only fetch their own config.
+    Path: GET /api/v1/agent-config/{agent_id}/config
 
     Returns config values where sensitive fields (nats_url_enc, core_api_url_enc)
     are Fernet-encrypted with a key derived from THIS agent's API key.

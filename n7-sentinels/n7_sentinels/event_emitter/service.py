@@ -8,6 +8,7 @@ from nats.aio.client import Client as NATS
 
 from .config import settings
 from ..agent_id import get_agent_id
+from ..messaging.nats_client import _build_tls_context
 
 logger = logging.getLogger("n7-sentinel.event-emitter")
 
@@ -31,9 +32,13 @@ class EventEmitterService:
         logger.info("EventEmitterService started.")
 
         try:
+            tls_ctx = _build_tls_context()
+            if tls_ctx:
+                logger.info("Using mTLS for NATS (JetStream) connection")
             # Connect options with reconnect logic
             await self.nc.connect(
                 servers=[settings.NATS_URL],
+                tls=tls_ctx,
                 reconnect_time_wait=2,
                 max_reconnect_attempts=-1
             )
